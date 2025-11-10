@@ -1,0 +1,14 @@
+# Shared defaults for MathLM experiments
+model_name: gemma-2-2b-instruct
+reward_weights:
+  syntax: 0.1
+  execution: 0.2
+  extraction: 0.3
+  reasoning: 0.5
+  exact: 2.0
+  penalty: -0.5
+training:
+  batch_size: 64
+  learning_rate: 1.0e-5
+  kl_target: 0.08
+  entropy_coef: 0.01

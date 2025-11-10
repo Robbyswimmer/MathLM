@@ -1,3 +1,12 @@
+Project proposal due: 11/06 
+
+
+Presentation video due: 12/05 at noon
+
+
+Final report and code due: 12/10
+
+
 Guidelines
 
 The final project is intended to give you an opportunity to explore one or more ideas from the course. Students can work either individually or in small groups consisting of 2-3 members. Pretty much anything to do with reinforcement should be acceptable, as long as the difficulty level is reasonable. 

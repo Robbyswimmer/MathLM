@@ -1,0 +1,19 @@
+name: mathlm
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pytorch
+  - cudatoolkit
+  - torchvision
+  - transformers
+  - datasets
+  - accelerate
+  - sentencepiece
+  - pip
+  - pip:
+      - trl
+      - wandb
+      - hydra-core

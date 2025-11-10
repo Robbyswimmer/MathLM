@@ -1,0 +1,7 @@
+# Phase 1: easiest 1k GSM8k problems
+include: base.yaml
+curriculum:
+  split: easy
+  max_problems: 1000
+training:
+  total_steps: 100000

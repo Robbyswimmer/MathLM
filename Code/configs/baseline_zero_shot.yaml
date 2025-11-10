@@ -1,0 +1,5 @@
+# Zero-shot baseline evaluation config
+model_name: gemma-2-2b-instruct
+prompting:
+  shots: 0
+  template: default

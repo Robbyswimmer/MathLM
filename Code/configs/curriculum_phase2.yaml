@@ -1,0 +1,7 @@
+# Phase 2: full GSM8k with enhanced rewards
+include: base.yaml
+curriculum:
+  split: full
+  max_problems: null
+training:
+  total_steps: 250000

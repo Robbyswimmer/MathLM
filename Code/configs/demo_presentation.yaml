@@ -1,0 +1,5 @@
+# Demo configuration for presentation rollouts
+include: curriculum_phase2.yaml
+evaluation:
+  num_samples: 5
+  save_traces: true

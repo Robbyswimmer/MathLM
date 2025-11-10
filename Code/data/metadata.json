@@ -1,0 +1,5 @@
+{
+  "dataset": "GSM8k",
+  "version": "2021-08-01",
+  "notes": "Populated by scripts/prepare_data.py"
+}
