@@ -15,6 +15,7 @@ class TrainingConfig:
     kl_target: float
     entropy_coef: float
     total_steps: int
+    checkpoint_interval: int
 
 
 @dataclass
@@ -50,5 +51,6 @@ def parse_config(config: Dict[str, Any]) -> ExperimentConfig:
         kl_target=training_cfg.get("kl_target", 0.08),
         entropy_coef=training_cfg.get("entropy_coef", 0.01),
         total_steps=training_cfg.get("total_steps", 250_000),
+        checkpoint_interval=training_cfg.get("checkpoint_interval", 1_000),
     )
     return ExperimentConfig(data=data, training=training, reward_weights=reward_cfg)

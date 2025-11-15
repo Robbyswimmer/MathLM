@@ -72,10 +72,18 @@ def main() -> None:
     dataset = PromptDataset(processed_path)
     metrics_path = args.output_dir / "logs" / run_id / "metrics.jsonl"
     logger = JSONLLogger(metrics_path)
+    checkpoint_dir = args.output_dir / "checkpoints" / run_id
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    runner_kwargs = {
+        "minibatch_size": config.training.batch_size,
+        "checkpoint_dir": checkpoint_dir,
+        "checkpoint_interval": config.training.checkpoint_interval,
+    }
 
     if PPOTrainer is None:
         print("TRL not installed; running stub trainer for logging only.")
-        runner = MathLMPPORunner(dataset, reward_calc, logger)
+        runner = MathLMPPORunner(dataset, reward_calc, logger, **runner_kwargs)
         runner.run(total_steps=config.training.total_steps)
         return
 
@@ -88,7 +96,14 @@ def main() -> None:
         target_kl=config.training.kl_target,
     )
     trainer = PPOTrainer(ppo_config, model, tokenizer)
-    runner = MathLMPPORunner(dataset, reward_calc, logger, trainer=trainer, tokenizer=tokenizer)
+    runner = MathLMPPORunner(
+        dataset,
+        reward_calc,
+        logger,
+        trainer=trainer,
+        tokenizer=tokenizer,
+        **runner_kwargs,
+    )
     runner.run(total_steps=config.training.total_steps)
 
 
