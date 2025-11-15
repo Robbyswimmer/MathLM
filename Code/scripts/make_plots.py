@@ -39,7 +39,7 @@ def main() -> None:
     plt.legend()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(args.output)
-    print(f"Saved plot to {args.output}")
+    print(f"Saved plot to {args.output}", flush=True)
 
 
 if __name__ == "__main__":

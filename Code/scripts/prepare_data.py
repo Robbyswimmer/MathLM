@@ -144,7 +144,7 @@ def main() -> None:
     metadata[output_name] = summary
     metadata_path.write_text(json.dumps(metadata, indent=2))
 
-    print(json.dumps(summary, indent=2))
+    print(json.dumps(summary, indent=2), flush=True)
 
 
 if __name__ == "__main__":

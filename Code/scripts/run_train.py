@@ -82,7 +82,7 @@ def main() -> None:
     }
 
     if PPOTrainer is None:
-        print("TRL not installed; running stub trainer for logging only.")
+        print("TRL not installed; running stub trainer for logging only.", flush=True)
         runner = MathLMPPORunner(dataset, reward_calc, logger, **runner_kwargs)
         runner.run(total_steps=config.training.total_steps)
         return
