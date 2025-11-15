@@ -1,5 +1,23 @@
 {
   "dataset": "GSM8k",
   "version": "2021-08-01",
-  "notes": "Populated by scripts/prepare_data.py"
+  "notes": "Populated by scripts/prepare_data.py",
+  "gsm8k_train_easy": {
+    "config": "configs/curriculum_phase1.yaml",
+    "raw_path": "data/raw/gsm8k_train.jsonl",
+    "processed_path": "data/processed/gsm8k_train_easy.jsonl",
+    "split": "train",
+    "curriculum": "easy",
+    "max_problems": 1000,
+    "num_examples": 4
+  },
+  "gsm8k_train_full": {
+    "config": "configs/curriculum_phase2.yaml",
+    "raw_path": "data/raw/gsm8k_train.jsonl",
+    "processed_path": "data/processed/gsm8k_train_full.jsonl",
+    "split": "train",
+    "curriculum": "full",
+    "max_problems": null,
+    "num_examples": 4
+  }
 }

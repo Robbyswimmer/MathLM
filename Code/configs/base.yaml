@@ -1,5 +1,8 @@
 # Shared defaults for MathLM experiments
 model_name: gemma-2-2b-instruct
+data:
+  split: train
+  source: local
 reward_weights:
   syntax: 0.1
   execution: 0.2
