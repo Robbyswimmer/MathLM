@@ -1,0 +1,107 @@
+"""Dense reward computation for MathLM."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from typing import List, Optional
+
+from mathlm.data import GSM8KExample
+
+from .sandbox import PythonSandbox, SandboxResult, extract_python_blocks
+
+
+@dataclass
+class RewardWeights:
+    syntax: float = 0.1
+    execution: float = 0.2
+    extraction: float = 0.3
+    reasoning: float = 0.5
+    exact: float = 2.0
+    penalty: float = -0.5
+
+
+@dataclass
+class RewardBreakdown:
+    syntax_reward: float = 0.0
+    execution_reward: float = 0.0
+    extraction_reward: float = 0.0
+    reasoning_reward: float = 0.0
+    exact_reward: float = 0.0
+    penalty: float = 0.0
+
+    @property
+    def total(self) -> float:
+        return (
+            self.syntax_reward
+            + self.execution_reward
+            + self.extraction_reward
+            + self.reasoning_reward
+            + self.exact_reward
+            + self.penalty
+        )
+
+
+class RewardCalculator:
+    def __init__(self, weights: RewardWeights | None = None, sandbox: PythonSandbox | None = None):
+        self.weights = weights or RewardWeights()
+        self.sandbox = sandbox or PythonSandbox()
+
+    def evaluate(self, example: GSM8KExample, model_output: str) -> RewardBreakdown:
+        breakdown = RewardBreakdown()
+        python_blocks = extract_python_blocks(model_output)
+        syntax_ok = False
+        execution_ok = False
+        if python_blocks:
+            for block in python_blocks:
+                try:
+                    compile(block, "<model>", "exec")
+                    syntax_ok = True
+                except SyntaxError:
+                    continue
+                result = self.sandbox.run(block)
+                if result.success:
+                    execution_ok = True
+                    break
+        if syntax_ok:
+            breakdown.syntax_reward = self.weights.syntax
+        if execution_ok:
+            breakdown.execution_reward = self.weights.execution
+
+        extracted_value = extract_final_number(model_output)
+        if extracted_value is not None:
+            breakdown.extraction_reward = self.weights.extraction
+        if has_reasoning_text(model_output):
+            breakdown.reasoning_reward = self.weights.reasoning
+        if extracted_value is not None and answers_match(extracted_value, example.answer):
+            breakdown.exact_reward = self.weights.exact
+        else:
+            breakdown.penalty = self.weights.penalty
+        return breakdown
+
+
+def extract_final_number(text: str) -> Optional[str]:
+    matches = re.findall(r"[-+]?[0-9]*\.?[0-9]+", text)
+    if matches:
+        return matches[-1]
+    return None
+
+
+def normalize_answer(ans: str) -> str:
+    ans = ans.strip().lower()
+    ans = ans.replace(",", "")
+    ans = re.sub(r"[^0-9.-]", " ", ans)
+    parts = [part for part in ans.split() if part]
+    return parts[-1] if parts else ""
+
+
+def answers_match(predicted: str, ground_truth: str) -> bool:
+    return normalize_answer(predicted) == normalize_answer(ground_truth)
+
+
+def has_reasoning_text(output: str) -> bool:
+    stripped = output.strip()
+    lines = [line for line in stripped.splitlines() if line.strip()]
+    text_lines = [line for line in lines if not line.strip().startswith("```")]
+    joined = " ".join(text_lines)
+    return len(joined.split()) >= 10
