@@ -11,7 +11,7 @@
 #SBATCH --mail-user=rmose009@ucr.edu
 #SBATCH -p gpu
 
-set -euo pipefail
+set -eo pipefail
 
 export PYTHONUNBUFFERED=1
 
@@ -24,7 +24,9 @@ fi
 
 CONDA_ENV=${CONDA_ENV:-mathlm}
 echo "Activating conda environment '${CONDA_ENV}'"
+set +u
 conda activate "${CONDA_ENV}"
+set -u
 
 echo "Starting MathLM GSM8k baseline eval at $(date)"
 
