@@ -52,17 +52,23 @@ def resolve_model_and_tokenizer(ref: str | Path):
         raise RuntimeError("transformers is required for evaluation; please install it in your environment.")
     ref_path = Path(ref)
     if ref_path.exists():
+        print(f"Loading model from local path: {ref_path}", flush=True)
         model_dir = ref_path / "model"
         tokenizer_dir = ref_path / "tokenizer"
         model_source = model_dir if model_dir.exists() else ref_path
         tokenizer_source = tokenizer_dir if tokenizer_dir.exists() else ref_path
+        print(f"  Model source: {model_source}", flush=True)
+        print(f"  Tokenizer source: {tokenizer_source}", flush=True)
         model = AutoModelForCausalLM.from_pretrained(model_source)
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_source)
         model_name = ref_path.name
+        print(f"✓ Model loaded: {model_name}", flush=True)
     else:
+        print(f"Downloading model from HuggingFace: {ref}", flush=True)
         model = AutoModelForCausalLM.from_pretrained(str(ref))
         tokenizer = AutoTokenizer.from_pretrained(str(ref))
         model_name = str(ref)
+        print(f"✓ Model downloaded: {model_name}", flush=True)
     return model_name, model, tokenizer
 
 
@@ -77,20 +83,39 @@ def evaluate_model(
     device: str | None,
     predictions_dir: Path,
 ) -> Dict[str, Any]:
+    print(f"\n{'='*60}", flush=True)
+    print(f"Evaluating {label} model", flush=True)
+    print(f"{'='*60}", flush=True)
+
     model_name, model, tokenizer = resolve_model_and_tokenizer(model_ref)
+
+    print(f"Moving model to device: {device or 'auto'}", flush=True)
     generator = HFModelGenerator(model, tokenizer, max_new_tokens=max_new_tokens, device=device)
     evaluator = MathLMEvaluator(generator)
+
+    num_eval = max_examples or len(dataset)
+    print(f"Starting evaluation on {num_eval} examples (batch_size={batch_size})", flush=True)
+
     stats, predictions = evaluator.evaluate(
         dataset,
         batch_size=batch_size,
         max_examples=max_examples,
         shuffle=False,
     )
+
+    print(f"✓ Evaluation complete!", flush=True)
+    print(f"  Accuracy: {stats.accuracy:.2%} ({stats.num_correct}/{stats.num_examples})", flush=True)
+
     predictions_dir.mkdir(parents=True, exist_ok=True)
     predictions_path = predictions_dir / f"{label}_predictions.jsonl"
+    print(f"Writing predictions to {predictions_path}", flush=True)
+
     with predictions_path.open("w", encoding="utf-8") as fout:
         for pred in predictions:
             fout.write(json.dumps(pred.to_json()) + "\n")
+
+    print(f"✓ Predictions saved", flush=True)
+
     return {
         "label": label,
         "model_name": model_name,
@@ -103,9 +128,25 @@ def evaluate_model(
 
 def main() -> None:
     args = parse_args()
+
+    print("="*60, flush=True)
+    print("MathLM Evaluation", flush=True)
+    print("="*60, flush=True)
+    print(f"Config: {args.config}", flush=True)
+    print(f"Output: {args.output}", flush=True)
+    print(f"Device: {args.device or 'auto'}", flush=True)
+    print(f"Batch size: {args.batch_size}", flush=True)
+    print(f"Max examples: {args.max_examples or 'all'}", flush=True)
+    print("="*60, flush=True)
+
+    print("\nLoading configuration...", flush=True)
     config = load_experiment(args.config)
+
+    print("Loading dataset...", flush=True)
     dataset_path = load_dataset_path(config, args.data_dir, args.dataset_path)
     dataset = PromptDataset(dataset_path)
+    print(f"✓ Dataset loaded: {len(dataset)} examples from {dataset_path}", flush=True)
+
     predictions_dir = args.predictions_dir or args.output.parent / "predictions"
     max_examples = args.max_examples if args.max_examples and args.max_examples > 0 else None
 
@@ -117,6 +158,8 @@ def main() -> None:
     }
 
     baseline_model = args.baseline_model or config.training.model_name
+    print(f"\nBaseline model: {baseline_model}", flush=True)
+
     baseline_result = evaluate_model(
         "baseline",
         baseline_model,
@@ -130,6 +173,7 @@ def main() -> None:
     report["results"].append(baseline_result)
 
     if args.checkpoint:
+        print(f"\nCheckpoint model: {args.checkpoint}", flush=True)
         checkpoint_result = evaluate_model(
             "checkpoint",
             args.checkpoint,
@@ -143,8 +187,13 @@ def main() -> None:
         checkpoint_result["checkpoint"] = str(args.checkpoint)
         report["results"].append(checkpoint_result)
 
+    print(f"\nWriting final report to {args.output}", flush=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2))
+
+    print("\n" + "="*60, flush=True)
+    print("EVALUATION COMPLETE", flush=True)
+    print("="*60, flush=True)
     print(json.dumps(report, indent=2), flush=True)
 
 
