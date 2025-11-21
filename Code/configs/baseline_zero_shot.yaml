@@ -1,5 +1,8 @@
 # Zero-shot baseline evaluation config
-model_name: gemma-2-2b-instruct
+model_name: google/gemma-2-2b-it
 prompting:
   shots: 0
   template: default
+data:
+  split: test
+  source: huggingface
