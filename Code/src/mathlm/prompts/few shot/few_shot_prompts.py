@@ -2,6 +2,24 @@
 
 ONE_SHOT_PROMPT = '''Solve the following math problem step-by-step. Show your reasoning, write lightweight Python code to compute the solution (no imports allowed), and provide the final numerical answer at the end.
 
+Requirements:
+1. Show your reasoning clearly by explaining each step.
+2. Write lightweigth Python code to compute the solution (no imports allowed).
+3. Provide the final numerical answer at the end.
+
+Format your response as follows:
+<step-by-step reasoning - describe the problem and your approach>
+<lightweight Python code - implement the solution>
+
+```python
+# Python code here to solve the problem
+# Use basic arithmetic operations only
+# Calculate and print the final answer
+result = <calculation>
+print(result)
+```
+<final answer - the numerical result>
+
 Example:
 
 Problem: Jane has 3 apples and buys 5 more. How many apples does she have?
@@ -22,6 +40,24 @@ Now, solve the following problem:
 Problem: {problem}'''
 
 TWO_SHOT_PROMPT = '''Solve the following math problem step by step. Show your reasoning, write Python code to compute the solution (no imports allowed), and state the final numerical answer.
+
+Requirements:
+1. Show your reasoning clearly by explaining each step.
+2. Write lightweigth Python code to compute the solution (no imports allowed).
+3. Provide the final numerical answer at the end.
+
+Format your response as follows:
+<step-by-step reasoning - describe the problem and your approach>
+<lightweight Python code - implement the solution>
+
+```python
+# Python code here to solve the problem
+# Use basic arithmetic operations only
+# Calculate and print the final answer
+result = <calculation>
+print(result)
+```
+<final answer - the numerical result>
 
 Example 1:
 
@@ -60,6 +96,24 @@ Now solve this problem:
 Problem: {problem}'''
 
 THREE_SHOT_PROMPT = '''Solve the following math problem step by step. Show your reasoning, write Python code to compute the solution (no imports allowed), and state the final numerical answer.
+
+Requirements:
+1. Show your reasoning clearly by explaining each step.
+2. Write lightweigth Python code to compute the solution (no imports allowed).
+3. Provide the final numerical answer at the end.
+
+Format your response as follows:
+<step-by-step reasoning - describe the problem and your approach>
+<lightweight Python code - implement the solution>
+
+```python
+# Python code here to solve the problem
+# Use basic arithmetic operations only
+# Calculate and print the final answer
+result = <calculation>
+print(result)
+```
+<final answer - the numerical result>
 
 Example 1:
 
