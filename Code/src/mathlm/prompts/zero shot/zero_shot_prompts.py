@@ -64,7 +64,7 @@ Solve this math problem, show your reasoning, write Python code to calculate the
 Problem: {problem}
 '''
 
-def get_zero_shot_prompt(template:str = 'default', problem: str = '') -> str:
+def get_zero_shot_prompt(template:str = 'default', problem:str = '') -> str:
     '''Returns the zero-shot prompt based on the specified template.'''
     if template == 'default':
         return ZERO_SHOT_PROMPT.format(problem=problem)
