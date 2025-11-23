@@ -453,6 +453,13 @@ def main() -> None:
     print(f"✓ PPO trainer initialized", flush=True)
     log_cuda_memory("After PPOTrainer init")
 
+    # Ensure wrapper exposes gradient checkpointing toggles (TRL expects them)
+    import types
+    if not hasattr(trainer.model, "gradient_checkpointing_disable"):
+        trainer.model.gradient_checkpointing_disable = types.MethodType(lambda self: None, trainer.model)
+    if not hasattr(trainer.model, "gradient_checkpointing_enable"):
+        trainer.model.gradient_checkpointing_enable = types.MethodType(lambda self: None, trainer.model)
+
     # Patch trainer models to always yield logits (handles tuple outputs)
     import types
     def _patch_module_outputs(module, label: str) -> None:
