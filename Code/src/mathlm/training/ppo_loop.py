@@ -118,16 +118,20 @@ class MathLMPPORunner:
             raise RuntimeError("PyTorch is required for training.")
         assert self.trainer is not None and self.tokenizer is not None
 
-        # Get model from trainer - unwrap to get the pretrained model
+        # Get model from trainer - unwrap to get the pretrained model used for generation
         model = self.trainer.model
-        # TRL wraps the model, so we need to access the underlying pretrained_model
-        if hasattr(model, 'pretrained_model'):
+        gen_model = None
+        # TRL PolicyAndValueWrapper exposes the policy model as `policy_model`
+        if hasattr(model, "policy_model"):
+            gen_model = model.policy_model
+        # Some wrappers expose `pretrained_model` or `base_model`
+        if gen_model is None and hasattr(model, "pretrained_model"):
             gen_model = model.pretrained_model
-        elif hasattr(model, 'base_model'):
+        if gen_model is None and hasattr(model, "base_model"):
             gen_model = model.base_model
-        else:
+        if gen_model is None:
             gen_model = model
-        device = next(model.parameters()).device
+        device = next(gen_model.parameters()).device
 
         # Prepare prompts
         prompts = [example.prompt for example in batch]

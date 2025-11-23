@@ -78,10 +78,17 @@ def _ensure_base_prefix(module) -> None:
     """Some TRL versions expect base_model_prefix to exist."""
     if module is None:  # pragma: no cover - defensive
         return
-    if not hasattr(module, "base_model_prefix"):
-        setattr(module, "base_model_prefix", "model")
+    # Prefer an existing backbone attribute if available
+    if hasattr(module, "pretrained_model"):
+        prefix = "pretrained_model"
+    elif hasattr(module, "model"):
+        prefix = "model"
+    elif hasattr(module, "transformer"):
+        prefix = "transformer"
+    else:
+        prefix = "model"
+    setattr(module, "base_model_prefix", prefix)
     # Ensure an attribute matching base_model_prefix exists; avoid self-recursion
-    prefix = getattr(module, "base_model_prefix", "model")
     if not hasattr(module, prefix):
         try:
             import torch.nn as nn  # type: ignore
@@ -273,15 +280,13 @@ def main() -> None:
     reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
     print("✓ Reward model loaded", flush=True)
 
-    # Value model should be the v_head specifically, not the whole model
-    # This avoids recursion issues in TRL's parameter traversal
-    value_model = model.v_head if hasattr(model, 'v_head') else None
+    # Value model: use the full model; TRL will access its backbone via base_model_prefix
+    value_model = model
 
     # Ensure TRL can find base model prefix
     _ensure_base_prefix(model)
     _ensure_base_prefix(ref_model)
-    if value_model is not None:
-        _ensure_base_prefix(value_model)
+    _ensure_base_prefix(value_model)
 
     # Ensure generation configs exist so PPOTrainer can set stop/pad tokens
     _ensure_generation_config(model, tokenizer)
