@@ -35,8 +35,8 @@ def main():
 
     # Load model and tokenizer
     print("\nLoading model and tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(args.checkpoint)
-    model_wrapper = AutoModelForCausalLMWithValueHead.from_pretrained(args.checkpoint)
+    tokenizer = AutoTokenizer.from_pretrained(str(args.checkpoint))
+    model_wrapper = AutoModelForCausalLMWithValueHead.from_pretrained(str(args.checkpoint))
     model = model_wrapper.pretrained_model  # Extract the base model for generation
     model.eval()
     print("✓ Model loaded")
