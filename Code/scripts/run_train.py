@@ -255,13 +255,15 @@ def main() -> None:
     reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
     print("✓ Reward model loaded", flush=True)
 
-    # Value model handle (used by some PPOTrainer signatures)
-    value_model = model
+    # Value model should be the v_head specifically, not the whole model
+    # This avoids recursion issues in TRL's parameter traversal
+    value_model = model.v_head if hasattr(model, 'v_head') else None
 
     # Ensure TRL can find base model prefix
     _ensure_base_prefix(model)
     _ensure_base_prefix(ref_model)
-    _ensure_base_prefix(value_model)
+    if value_model is not None:
+        _ensure_base_prefix(value_model)
 
     # Ensure generation configs exist so PPOTrainer can set stop/pad tokens
     _ensure_generation_config(model, tokenizer)
