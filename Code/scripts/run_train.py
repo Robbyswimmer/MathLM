@@ -27,6 +27,7 @@ import torch
 from dataclasses import dataclass
 from typing import Optional, Tuple, Any
 import torch.nn as nn
+import math
 
 # --- Monkeypatch for TRL v0.25.1 Compatibility ---
 # TRL's AutoModelForCausalLMWithValueHead might return a tuple even with return_dict=True
@@ -184,6 +185,16 @@ def verify_model_output(model, name="Model"):
         traceback.print_exc()
 # -------------------------------------------------
 
+def log_cuda_memory(label: str) -> None:
+    """Log CUDA memory usage in MiB if available."""
+    if not torch.cuda.is_available():  # pragma: no cover - CUDA may be absent locally
+        return
+    device = torch.cuda.current_device()
+    alloc = torch.cuda.memory_allocated(device) / (1024 ** 2)
+    reserved = torch.cuda.memory_reserved(device) / (1024 ** 2)
+    max_alloc = torch.cuda.max_memory_allocated(device) / (1024 ** 2)
+    print(f"[CUDA] {label}: alloc={alloc:.1f} MiB reserved={reserved:.1f} MiB max_alloc={max_alloc:.1f} MiB", flush=True)
+
 
 def load_experiment(config_path: Path) -> ExperimentConfig:
     raw_cfg = load_yaml_config(config_path)
@@ -283,6 +294,7 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(config.training.model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    log_cuda_memory("After tokenizer load")
 
     # Load model with value head for PPO
     # Use fp32 for stability (avoid fp16/bf16 NaNs/asserts on this kernel)
@@ -298,6 +310,7 @@ def main() -> None:
         return_dict=True,
         torch_dtype=torch.float32,
     )
+    log_cuda_memory("After model + ref_model load")
 
     # Explicitly patch instances to ensure our forward is used
     import types
@@ -308,6 +321,7 @@ def main() -> None:
     # Verify output format
     verify_model_output(model, "Policy Model")
     verify_model_output(ref_model, "Ref Model")
+    log_cuda_memory("After verify_model_output")
 
     # Align reference model device with policy model
     try:
@@ -334,6 +348,7 @@ def main() -> None:
     if tokenizer.pad_token_id is not None:
         model.generation_config.pad_token_id = tokenizer.pad_token_id
         ref_model.generation_config.pad_token_id = tokenizer.pad_token_id
+    log_cuda_memory("After generation_config setup")
 
     # Ensure models return dicts (required by TRL v0.25.1+)
     model.config.return_dict = True
@@ -342,6 +357,7 @@ def main() -> None:
         model.pretrained_model.config.return_dict = True
     if hasattr(ref_model, "pretrained_model"):
         ref_model.pretrained_model.config.return_dict = True
+    log_cuda_memory("After return_dict enforcement")
 
     # Fix for TRL v0.25.1: Ensure base_model_prefix is set
     # AutoModelForCausalLMWithValueHead wraps the transformer in 'pretrained_model'
@@ -349,6 +365,7 @@ def main() -> None:
         model.base_model_prefix = "pretrained_model"
     if not hasattr(ref_model, "base_model_prefix"):
         ref_model.base_model_prefix = "pretrained_model"
+    log_cuda_memory("After base_model_prefix setup")
 
     # Restore is_gradient_checkpointing attribute (removed during cleanup but needed)
     if not hasattr(model, 'is_gradient_checkpointing'):
@@ -395,6 +412,7 @@ def main() -> None:
     
     hf_dataset = Dataset.from_dict(dataset_dict)
     print(f"✓ Dataset prepared: {len(hf_dataset)} examples", flush=True)
+    log_cuda_memory("After dataset prep")
 
     print("\nInitializing PPO configuration...", flush=True)
     # Use config values directly, assuming bf16 is handled by config
@@ -438,6 +456,7 @@ def main() -> None:
         value_model=value_model,
     )
     print(f"✓ PPO trainer initialized", flush=True)
+    log_cuda_memory("After PPOTrainer init")
 
     # --- Fix for TRL v0.25.1: PolicyAndValueWrapper missing gradient_checkpointing methods ---
     # The wrapper created by PPOTrainer doesn't expose these methods, causing crash in unwrap_model_for_generation
@@ -492,6 +511,7 @@ def main() -> None:
         _patch_module_outputs(getattr(trainer, "model", None), "trainer.model")
     except Exception as err:
         print(f"! Failed to patch trainer.model.forward: {err}", flush=True)
+    log_cuda_memory("After forward patching")
 
     print("\n" + "="*60, flush=True)
     print("STARTING PPO TRAINING", flush=True)
@@ -522,6 +542,7 @@ def main() -> None:
         print("✓ Wrapped trainer.ref_model with SafeRefModel", flush=True)
     except Exception as err:
         print(f"! Failed to wrap trainer.ref_model: {err}", flush=True)
+    log_cuda_memory("Before trainer.train()")
 
     trainer.train()
 
