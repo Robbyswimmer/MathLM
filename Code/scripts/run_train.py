@@ -160,8 +160,8 @@ def main() -> None:
         config=ppo_config,
         model=model,
         ref_model=ref_model,
-        tokenizer=tokenizer,
-        dataset=hf_dataset,
+        processing_class=tokenizer,
+        train_dataset=hf_dataset,
         reward_model=reward_model,
         value_model=value_model,
     )
