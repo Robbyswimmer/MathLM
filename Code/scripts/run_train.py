@@ -36,22 +36,34 @@ import trl.models.utils as trl_utils
 
 # Monkeypatch PolicyAndValueWrapper to add missing gradient_checkpointing methods
 # This must be done before PPOTrainer is instantiated
-try:
-    from trl.models.modeling_value_head import PolicyAndValueWrapper
+def _noop_gc(self):
+    """No-op for gradient checkpointing toggle."""
+    pass
 
-    def _noop(self):
-        """No-op for gradient checkpointing toggle."""
-        pass
+# Try multiple import paths for PolicyAndValueWrapper
+_patched_pvw = False
+for module_path in [
+    "trl.models.modeling_value_head",
+    "trl.trainer.ppo_trainer",
+    "trl.models",
+]:
+    try:
+        import importlib
+        mod = importlib.import_module(module_path)
+        if hasattr(mod, "PolicyAndValueWrapper"):
+            PolicyAndValueWrapper = mod.PolicyAndValueWrapper
+            if not hasattr(PolicyAndValueWrapper, "gradient_checkpointing_disable"):
+                PolicyAndValueWrapper.gradient_checkpointing_disable = _noop_gc
+            if not hasattr(PolicyAndValueWrapper, "gradient_checkpointing_enable"):
+                PolicyAndValueWrapper.gradient_checkpointing_enable = _noop_gc
+            print(f"✓ Patched PolicyAndValueWrapper from {module_path}", flush=True)
+            _patched_pvw = True
+            break
+    except (ImportError, AttributeError):
+        continue
 
-    if not hasattr(PolicyAndValueWrapper, "gradient_checkpointing_disable"):
-        PolicyAndValueWrapper.gradient_checkpointing_disable = _noop
-        print("✓ Added gradient_checkpointing_disable to PolicyAndValueWrapper", flush=True)
-
-    if not hasattr(PolicyAndValueWrapper, "gradient_checkpointing_enable"):
-        PolicyAndValueWrapper.gradient_checkpointing_enable = _noop
-        print("✓ Added gradient_checkpointing_enable to PolicyAndValueWrapper", flush=True)
-except ImportError:
-    print("! Could not import PolicyAndValueWrapper, skipping class-level patch", flush=True)
+if not _patched_pvw:
+    print("! Could not find PolicyAndValueWrapper to patch", flush=True)
 
 # --- Monkeypatch for TRL v0.25.1 Compatibility ---
 # TRL's AutoModelForCausalLMWithValueHead might return a tuple even with return_dict=True
