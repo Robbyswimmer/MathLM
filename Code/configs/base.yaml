@@ -1,7 +1,7 @@
 # Shared defaults for MathLM experiments
 data:
   split: train
-  source: huggingface
+  # source: huggingface  <-- Removed to avoid conflict
   # Optional: path to a local JSONL file to use as raw data
   # raw_file: data/processed/gsm8k_train_full.jsonl
   # Optional: path to a local Parquet file to convert
