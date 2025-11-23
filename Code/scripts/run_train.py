@@ -516,16 +516,28 @@ def main() -> None:
     # Use trainer.train() instead of custom runner
     # Wrap ref_model to ensure dict outputs even if TRL bypasses our global patch
     class SafeRefModel(nn.Module):
-        def __init__(self, base):
+        def __init__(self, base, target_device):
             super().__init__()
             self.base = base
+            self.target_device = target_device
         def forward(self, *args, **kwargs):
             kwargs["return_dict"] = True
             out = self.base(*args, **kwargs)
             if hasattr(out, "logits"):
+                try:
+                    out.logits = out.logits.to(self.target_device)
+                    if hasattr(out, "value") and isinstance(out.value, torch.Tensor):
+                        out.value = out.value.to(self.target_device)
+                except Exception:
+                    pass
                 return out
             if isinstance(out, tuple) and out:
-                return CausalLMOutputWithValue(logits=out[0], original_tuple=out)
+                logits = out[0]
+                try:
+                    logits = logits.to(self.target_device)
+                except Exception:
+                    pass
+                return CausalLMOutputWithValue(logits=logits, original_tuple=out)
             return out
         def __getattr__(self, name):
             try:
@@ -534,7 +546,8 @@ def main() -> None:
                 return getattr(self.base, name)
 
     try:
-        trainer.ref_model = SafeRefModel(trainer.ref_model)
+        policy_device = next(model.parameters()).device
+        trainer.ref_model = SafeRefModel(trainer.ref_model, policy_device)
         print("✓ Wrapped trainer.ref_model with SafeRefModel", flush=True)
     except Exception as err:
         print(f"! Failed to wrap trainer.ref_model: {err}", flush=True)
