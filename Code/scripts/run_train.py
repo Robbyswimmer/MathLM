@@ -170,9 +170,9 @@ def main() -> None:
 
     # Convert dataset to HuggingFace Dataset format
     print("\nPreparing HuggingFace Dataset...", flush=True)
+    # TRL expects 'query' to be the tokenized input IDs
     dataset_dict = {
-        "query": [ex.prompt for ex in dataset.examples],
-        "input_ids": [tokenizer.encode(ex.prompt, truncation=True, max_length=512) for ex in dataset.examples],
+        "query": [tokenizer.encode(ex.prompt, truncation=True, max_length=512) for ex in dataset.examples],
     }
     hf_dataset = Dataset.from_dict(dataset_dict)
     print(f"✓ Dataset prepared: {len(hf_dataset)} examples", flush=True)
