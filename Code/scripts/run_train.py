@@ -334,18 +334,18 @@ def main() -> None:
     log_cuda_memory("After tokenizer load")
 
     # Load model with value head for PPO
-    # Use fp32 for stability (avoid fp16/bf16 NaNs/asserts on this kernel)
+    # Use bf16 to save memory (fp32 uses too much memory during backward pass)
     model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.training.model_name,
         return_dict=True,
-        torch_dtype=torch.float32,
+        torch_dtype=torch.bfloat16,
     )
 
     # Load reference model on GPU (Accelerate/TRL will shard/replicate as needed)
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.training.model_name,
         return_dict=True,
-        torch_dtype=torch.float32,
+        torch_dtype=torch.bfloat16,
     )
     log_cuda_memory("After model + ref_model load")
 
@@ -451,25 +451,26 @@ def main() -> None:
     log_cuda_memory("After dataset prep")
 
     print("\nInitializing PPO configuration...", flush=True)
-    target_batch = max(1, config.training.batch_size // world_size)
-    per_device_cap = int(os.environ.get("PPO_BATCH_PER_DEVICE", 2 if world_size > 1 else 1))
+    # Use batch_size=1 per device to minimize memory usage
+    target_batch = 1
+    per_device_cap = int(os.environ.get("PPO_BATCH_PER_DEVICE", 1))
     effective_batch = max(1, min(target_batch, per_device_cap))
 
     # Initialize with safe arguments first
     ppo_config = PPOConfig(
         learning_rate=config.training.learning_rate,
         batch_size=effective_batch,
-        mini_batch_size=max(1, effective_batch // world_size),
-        gradient_accumulation_steps=getattr(config.training, "gradient_accumulation_steps", 1),
+        mini_batch_size=1,
+        gradient_accumulation_steps=getattr(config.training, "gradient_accumulation_steps", 4),
         fp16=False,
-        bf16=False,
+        bf16=True,
     )
 
     ppo_config.target_kl = config.training.kl_target
     ppo_config.init_kl_coef = config.training.kl_target
 
     # Set other attributes explicitly to support varying TRL versions
-    ppo_config.bf16 = False
+    ppo_config.bf16 = True
     ppo_config.fp16 = False
 
     ppo_config.kl_penalty = "kl"
