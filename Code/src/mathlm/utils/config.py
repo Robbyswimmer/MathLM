@@ -27,9 +27,16 @@ class DataConfig:
 
 
 @dataclass
+class PromptingConfig:
+    shots: int
+    template: str
+
+
+@dataclass
 class ExperimentConfig:
     data: DataConfig
     training: TrainingConfig
+    prompting: PromptingConfig
     reward_weights: Dict[str, float]
 
 
@@ -37,6 +44,7 @@ def parse_config(config: Dict[str, Any]) -> ExperimentConfig:
     data_cfg = config.get("data", {})
     curriculum = config.get("curriculum", {})
     training_cfg = config.get("training", {})
+    prompting_cfg = config.get("prompting", {})
     reward_cfg = config.get("reward_weights", {})
     data = DataConfig(
         split=data_cfg.get("split", "train"),
@@ -45,7 +53,7 @@ def parse_config(config: Dict[str, Any]) -> ExperimentConfig:
         max_problems=curriculum.get("max_problems"),
     )
     training = TrainingConfig(
-        model_name=config.get("model_name", "gemma-2-2b-instruct"),
+        model_name=training_cfg.get("model_name") or config.get("model_name", "models/gemma-2-2b-it"),
         batch_size=training_cfg.get("batch_size", 64),
         learning_rate=training_cfg.get("learning_rate", 1e-5),
         kl_target=training_cfg.get("kl_target", 0.08),
@@ -53,4 +61,8 @@ def parse_config(config: Dict[str, Any]) -> ExperimentConfig:
         total_steps=training_cfg.get("total_steps", 250_000),
         checkpoint_interval=training_cfg.get("checkpoint_interval", 1_000),
     )
-    return ExperimentConfig(data=data, training=training, reward_weights=reward_cfg)
+    prompting = PromptingConfig(
+        shots=prompting_cfg.get("shots", 0),
+        template=prompting_cfg.get("template", "default"),
+    )
+    return ExperimentConfig(data=data, training=training, prompting=prompting, reward_weights=reward_cfg)

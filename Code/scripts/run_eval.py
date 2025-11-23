@@ -144,8 +144,13 @@ def main() -> None:
 
     print("Loading dataset...", flush=True)
     dataset_path = load_dataset_path(config, args.data_dir, args.dataset_path)
-    dataset = PromptDataset(dataset_path)
+    dataset = PromptDataset(
+        dataset_path,
+        shots=config.prompting.shots,
+        prompt_type=config.prompting.template,
+    )
     print(f"✓ Dataset loaded: {len(dataset)} examples from {dataset_path}", flush=True)
+    print(f"  Prompting: {config.prompting.shots}-shot, template={config.prompting.template}", flush=True)
 
     predictions_dir = args.predictions_dir or args.output.parent / "predictions"
     max_examples = args.max_examples if args.max_examples and args.max_examples > 0 else None

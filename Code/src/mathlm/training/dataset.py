@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterator, List
 
 from mathlm.data import GSM8KExample, load_raw_split
+from mathlm.prompts import get_zero_shot_prompt, get_few_shot_prompt
 
 
 @dataclass
@@ -17,16 +18,32 @@ class PromptExample:
 
 
 class PromptDataset:
-    def __init__(self, path: Path, template: str | None = None):
+    def __init__(
+        self,
+        path: Path,
+        template: str | None = None,
+        shots: int = 0,
+        prompt_type: str = "default",
+    ):
         self.path = path
-        self.template = template or "Solve the following math problem:\n{question}\nAnswer:"
+        self.shots = shots
+        self.prompt_type = prompt_type
+        self.template = template
         self.examples: List[PromptExample] = []
         self._load()
 
     def _load(self) -> None:
         examples = load_raw_split(self.path)
         for ex in examples:
-            prompt = self.template.format(question=ex.question)
+            if self.template:
+                # Use custom template if provided
+                prompt = self.template.format(question=ex.question, problem=ex.question)
+            elif self.shots == 0:
+                # Zero-shot prompting
+                prompt = get_zero_shot_prompt(template=self.prompt_type, problem=ex.question)
+            else:
+                # Few-shot prompting (1-3 shots)
+                prompt = get_few_shot_prompt(shot_count=self.shots, type=self.prompt_type, problem=ex.question)
             self.examples.append(PromptExample(question=ex, prompt=prompt))
 
     def __iter__(self) -> Iterator[PromptExample]:

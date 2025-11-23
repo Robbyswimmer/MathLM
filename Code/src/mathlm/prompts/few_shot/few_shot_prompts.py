@@ -4,7 +4,7 @@ ONE_SHOT_PROMPT = '''Solve the following math problem step-by-step. Show your re
 
 Requirements:
 1. Show your reasoning clearly by explaining each step.
-2. Write lightweigth Python code to compute the solution (no imports allowed).
+2. Write lightweight Python code to compute the solution (no imports allowed).
 3. Provide the final numerical answer at the end.
 
 Format your response as follows:
@@ -15,7 +15,7 @@ Format your response as follows:
 # Python code here to solve the problem
 # Use basic arithmetic operations only
 # Calculate and print the final answer
-result = <calculation>
+result = 3 + 5  # example calculation
 print(result)
 ```
 <final answer - the numerical result>
@@ -43,7 +43,7 @@ TWO_SHOT_PROMPT = '''Solve the following math problem step by step. Show your re
 
 Requirements:
 1. Show your reasoning clearly by explaining each step.
-2. Write lightweigth Python code to compute the solution (no imports allowed).
+2. Write lightweight Python code to compute the solution (no imports allowed).
 3. Provide the final numerical answer at the end.
 
 Format your response as follows:
@@ -54,7 +54,7 @@ Format your response as follows:
 # Python code here to solve the problem
 # Use basic arithmetic operations only
 # Calculate and print the final answer
-result = <calculation>
+result = 3 + 5  # example calculation
 print(result)
 ```
 <final answer - the numerical result>
@@ -99,7 +99,7 @@ THREE_SHOT_PROMPT = '''Solve the following math problem step by step. Show your 
 
 Requirements:
 1. Show your reasoning clearly by explaining each step.
-2. Write lightweigth Python code to compute the solution (no imports allowed).
+2. Write lightweight Python code to compute the solution (no imports allowed).
 3. Provide the final numerical answer at the end.
 
 Format your response as follows:
@@ -110,7 +110,7 @@ Format your response as follows:
 # Python code here to solve the problem
 # Use basic arithmetic operations only
 # Calculate and print the final answer
-result = <calculation>
+result = 3 + 5  # example calculation
 print(result)
 ```
 <final answer - the numerical result>

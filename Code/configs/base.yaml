@@ -1,8 +1,10 @@
 # Shared defaults for MathLM experiments
-model_name: gemma-2-2b-instruct
 data:
   split: train
-  source: local
+  source: huggingface
+prompting:
+  shots: 0
+  template: default
 reward_weights:
   syntax: 0.1
   execution: 0.2
@@ -11,6 +13,7 @@ reward_weights:
   exact: 2.0
   penalty: -0.5
 training:
+  model_name: models/gemma-2-2b-it
   batch_size: 64
   learning_rate: 1.0e-5
   kl_target: 0.08

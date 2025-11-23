@@ -42,6 +42,8 @@ class MathLMPPORunner:
         minibatch_size: int = 4,
         checkpoint_dir: Path | None = None,
         checkpoint_interval: int = 100,
+        log_examples_interval: int = 100,
+        traces_dir: Path | None = None,
     ) -> None:
         self.dataset = dataset
         self.reward_calc = reward_calc
@@ -52,16 +54,31 @@ class MathLMPPORunner:
         self.minibatch_size = minibatch_size
         self.checkpoint_dir = checkpoint_dir
         self.checkpoint_interval = checkpoint_interval
+        self.log_examples_interval = log_examples_interval
+        self.traces_dir = traces_dir
         self.use_trl = self.trainer is not None and self.tokenizer is not None
+
+        # EMA tracking
+        self.ema_reward = 0.0
+        self.ema_alpha = 0.01  # Smoothing factor
+
+        if self.traces_dir:
+            self.traces_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self, total_steps: int = 1000) -> None:
         if total_steps <= 0:
             return
         step = 0
         batch_iter = self.dataset.iter_batches(self.minibatch_size, shuffle=True, infinite=True)
+        print(f"\nTraining for {total_steps} steps...", flush=True)
         while step < total_steps:
             batch = next(batch_iter)
             step = self._process_batch(batch, step, total_steps)
+
+            # Progress logging every 10 steps
+            if step % 10 == 0:
+                progress = (step / total_steps) * 100
+                print(f"Step {step}/{total_steps} ({progress:.1f}%) - EMA Reward: {self.ema_reward:.3f}", flush=True)
 
     def _process_batch(self, batch: List[PromptExample], start_step: int, total_steps: int) -> int:
         if self.use_trl:
@@ -71,8 +88,16 @@ class MathLMPPORunner:
         trainer_payload = self._format_trainer_stats(trainer_stats)
         step = start_step
         for rollout in rollouts:
+            # Update EMA reward
+            self.ema_reward = self.ema_alpha * rollout.reward + (1 - self.ema_alpha) * self.ema_reward
+
             record = self._build_log_record(step, rollout, trainer_payload)
+            record["ema_reward"] = self.ema_reward  # Add EMA to logged metrics
             self.logger.log(record)
+
+            # Log example outputs periodically
+            self._maybe_log_example(step, rollout)
+
             step += 1
             self._maybe_checkpoint(step)
             if step >= total_steps:
@@ -179,3 +204,45 @@ class MathLMPPORunner:
         tokenizer_dir.mkdir(parents=True, exist_ok=True)
         self.trainer.model.save_pretrained(model_dir)
         self.tokenizer.save_pretrained(tokenizer_dir)
+        print(f"✓ Checkpoint saved at step {step}", flush=True)
+
+    def _maybe_log_example(self, step: int, rollout: Rollout) -> None:
+        """Log example outputs periodically to track training progress."""
+        if (
+            self.traces_dir is None
+            or self.log_examples_interval <= 0
+            or step <= 0
+            or step % self.log_examples_interval != 0
+        ):
+            return
+
+        import json
+
+        example_file = self.traces_dir / f"step_{step:06d}.txt"
+        breakdown = rollout.breakdown
+
+        with example_file.open("w", encoding="utf-8") as f:
+            f.write(f"=" * 80 + "\n")
+            f.write(f"Training Step: {step}\n")
+            f.write(f"EMA Reward: {self.ema_reward:.3f}\n")
+            f.write(f"=" * 80 + "\n\n")
+
+            f.write("PROMPT:\n")
+            f.write("-" * 80 + "\n")
+            f.write(rollout.prompt + "\n\n")
+
+            f.write("RESPONSE:\n")
+            f.write("-" * 80 + "\n")
+            f.write(rollout.response_text + "\n\n")
+
+            f.write("REWARD BREAKDOWN:\n")
+            f.write("-" * 80 + "\n")
+            f.write(f"  Syntax:     {breakdown.syntax_reward:+.2f}\n")
+            f.write(f"  Execution:  {breakdown.execution_reward:+.2f}\n")
+            f.write(f"  Extraction: {breakdown.extraction_reward:+.2f}\n")
+            f.write(f"  Reasoning:  {breakdown.reasoning_reward:+.2f}\n")
+            f.write(f"  Exact:      {breakdown.exact_reward:+.2f}\n")
+            f.write(f"  Penalty:    {breakdown.penalty:+.2f}\n")
+            f.write(f"  TOTAL:      {breakdown.total:+.2f}\n")
+
+        print(f"📝 Example logged at step {step} (reward: {breakdown.total:.3f})", flush=True)

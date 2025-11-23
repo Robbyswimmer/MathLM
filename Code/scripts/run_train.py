@@ -57,8 +57,20 @@ def bootstrap_data(config: ExperimentConfig, data_dir: Path) -> Path:
 
 def main() -> None:
     args = parse_args()
+
+    print("="*60, flush=True)
+    print("MathLM PPO Training", flush=True)
+    print("="*60, flush=True)
+    print(f"Config: {args.config}", flush=True)
+    print(f"Output dir: {args.output_dir}", flush=True)
+    print("="*60, flush=True)
+
+    print("\nLoading configuration...", flush=True)
     config = load_experiment(args.config)
+
+    print("Bootstrapping data...", flush=True)
     processed_path = bootstrap_data(config, args.data_dir)
+    print(f"✓ Data prepared: {processed_path}", flush=True)
 
     reward_weights = RewardWeights(**config.reward_weights)
     reward_calc = RewardCalculator(reward_weights)
@@ -69,26 +81,52 @@ def main() -> None:
     (run_dir / "config.json").write_text(json.dumps(config.__dict__, default=lambda o: o.__dict__, indent=2))
     (run_dir / "dataset.txt").write_text(str(processed_path))
 
-    dataset = PromptDataset(processed_path)
+    print(f"\nLoading dataset with prompts...", flush=True)
+    dataset = PromptDataset(
+        processed_path,
+        shots=config.prompting.shots,
+        prompt_type=config.prompting.template,
+    )
+    print(f"✓ Dataset loaded: {len(dataset)} examples", flush=True)
+    print(f"  Prompting: {config.prompting.shots}-shot, template={config.prompting.template}", flush=True)
+
     metrics_path = args.output_dir / "logs" / run_id / "metrics.jsonl"
     logger = JSONLLogger(metrics_path)
     checkpoint_dir = args.output_dir / "checkpoints" / run_id
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    traces_dir = args.output_dir / "traces" / run_id
+    traces_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"\nRun ID: {run_id}", flush=True)
+    print(f"Metrics: {metrics_path}", flush=True)
+    print(f"Checkpoints: {checkpoint_dir}", flush=True)
+    print(f"Example traces: {traces_dir}", flush=True)
 
     runner_kwargs = {
         "minibatch_size": config.training.batch_size,
         "checkpoint_dir": checkpoint_dir,
         "checkpoint_interval": config.training.checkpoint_interval,
+        "log_examples_interval": 100,
+        "traces_dir": traces_dir,
     }
 
     if PPOTrainer is None:
-        print("TRL not installed; running stub trainer for logging only.", flush=True)
+        print("\n⚠ TRL not installed; running stub trainer for logging only.", flush=True)
         runner = MathLMPPORunner(dataset, reward_calc, logger, **runner_kwargs)
         runner.run(total_steps=config.training.total_steps)
         return
 
+    print(f"\nLoading model: {config.training.model_name}", flush=True)
     tokenizer = AutoTokenizer.from_pretrained(config.training.model_name)
     model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
+    print("✓ Model loaded", flush=True)
+
+    print("\nInitializing PPO trainer...", flush=True)
+    print(f"  Batch size: {config.training.batch_size}", flush=True)
+    print(f"  Learning rate: {config.training.learning_rate}", flush=True)
+    print(f"  KL target: {config.training.kl_target}", flush=True)
+    print(f"  Total steps: {config.training.total_steps}", flush=True)
+
     ppo_config = PPOConfig(
         model_name=config.training.model_name,
         batch_size=config.training.batch_size,
@@ -96,6 +134,8 @@ def main() -> None:
         target_kl=config.training.kl_target,
     )
     trainer = PPOTrainer(ppo_config, model, tokenizer)
+    print("✓ PPO trainer initialized", flush=True)
+
     runner = MathLMPPORunner(
         dataset,
         reward_calc,
@@ -104,7 +144,16 @@ def main() -> None:
         tokenizer=tokenizer,
         **runner_kwargs,
     )
+
+    print("\n" + "="*60, flush=True)
+    print("STARTING PPO TRAINING", flush=True)
+    print("="*60, flush=True)
+
     runner.run(total_steps=config.training.total_steps)
+
+    print("\n" + "="*60, flush=True)
+    print("TRAINING COMPLETE", flush=True)
+    print("="*60, flush=True)
 
 
 if __name__ == "__main__":
