@@ -457,8 +457,13 @@ def main() -> None:
         trainer.model.gradient_checkpointing_enable = types.MethodType(_enable_gc, trainer.model)
     # ---------------------------------------------------------------------------------------
 
-    # Patch ref_model forward after PPOTrainer wraps models (handles tuple outputs)
-    def _wrap_forward(module):
+    # Patch trainer models to always yield logits (handles tuple outputs)
+    import types
+    def _patch_module_outputs(module, label: str) -> None:
+        if module is None:
+            return
+        if hasattr(module, "config"):
+            module.config.return_dict = True
         original = module.forward
         def _fwd(self, *args, **kwargs):
             kwargs["return_dict"] = True
@@ -469,13 +474,16 @@ def main() -> None:
                 return CausalLMOutputWithValue(logits=out[0], original_tuple=out)
             return out
         module.forward = types.MethodType(_fwd, module)
+        print(f"✓ Patched {label}.forward to normalize outputs", flush=True)
 
-    if hasattr(trainer, "ref_model"):
-        try:
-            _wrap_forward(trainer.ref_model)
-            print("✓ Patched trainer.ref_model.forward to normalize outputs", flush=True)
-        except Exception as err:
-            print(f"! Failed to patch trainer.ref_model.forward: {err}", flush=True)
+    try:
+        _patch_module_outputs(getattr(trainer, "ref_model", None), "trainer.ref_model")
+    except Exception as err:
+        print(f"! Failed to patch trainer.ref_model.forward: {err}", flush=True)
+    try:
+        _patch_module_outputs(getattr(trainer, "model", None), "trainer.model")
+    except Exception as err:
+        print(f"! Failed to patch trainer.model.forward: {err}", flush=True)
 
     print("\n" + "="*60, flush=True)
     print("STARTING PPO TRAINING", flush=True)
