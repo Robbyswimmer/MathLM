@@ -21,6 +21,7 @@ from mathlm.utils import ExperimentConfig, parse_config
 from mathlm.utils.yaml_loader import load_config as load_yaml_config
 
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
+from trl.models.modeling_value_head import PolicyAndValueWrapper
 from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
 from datasets import Dataset
 import torch
@@ -184,6 +185,16 @@ def verify_model_output(model, name="Model"):
         import traceback
         traceback.print_exc()
 # -------------------------------------------------
+
+# Ensure PolicyAndValueWrapper exposes gradient checkpointing hooks for TRL unwrap logic
+if not hasattr(PolicyAndValueWrapper, "gradient_checkpointing_disable"):
+    def _pgc_disable(self):
+        return None
+    PolicyAndValueWrapper.gradient_checkpointing_disable = _pgc_disable  # type: ignore
+if not hasattr(PolicyAndValueWrapper, "gradient_checkpointing_enable"):
+    def _pgc_enable(self):
+        return None
+    PolicyAndValueWrapper.gradient_checkpointing_enable = _pgc_enable  # type: ignore
 
 def log_cuda_memory(label: str) -> None:
     """Log CUDA memory usage in MiB if available."""
