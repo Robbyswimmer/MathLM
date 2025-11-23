@@ -263,8 +263,8 @@ def main() -> None:
         ref_model.is_gradient_checkpointing = False
 
     # Create a simple reward model (unused for PPO but kept for compatibility)
-    reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
-    print("✓ Reward model loaded", flush=True)
+    # reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
+    # print("✓ Reward model loaded", flush=True)
 
     # Value model: use the full model
     value_model = model

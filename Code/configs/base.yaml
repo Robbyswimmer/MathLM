@@ -19,7 +19,7 @@ reward_weights:
   penalty: -0.5
 training:
   model_name: models/gemma-2-2b-it
-  batch_size: 8
+  batch_size: 4
   learning_rate: 1.0e-5
   kl_target: 0.08
   entropy_coef: 0.01
