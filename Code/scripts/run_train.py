@@ -37,6 +37,25 @@ class CausalLMOutputWithValue:
     past_key_values: Optional[Tuple] = None
     hidden_states: Optional[Tuple[torch.Tensor]] = None
     attentions: Optional[Tuple[torch.Tensor]] = None
+    original_tuple: Optional[Tuple] = None
+
+    def __iter__(self):
+        if self.original_tuple is not None:
+            return iter(self.original_tuple)
+        # Fallback if created manually (unlikely in this patch)
+        components = [self.logits]
+        if self.past_key_values is not None:
+            components.append(self.past_key_values)
+        if self.value is not None:
+            components.append(self.value)
+        if self.hidden_states is not None:
+            components.append(self.hidden_states)
+        if self.attentions is not None:
+            components.append(self.attentions)
+        return iter(components)
+        
+    def __getitem__(self, idx):
+        return list(self)[idx]
 
 _original_forward = AutoModelForCausalLMWithValueHead.forward
 
@@ -90,7 +109,8 @@ def _patched_forward(self, *args, **kwargs):
             value=value, 
             past_key_values=past_key_values,
             hidden_states=hidden_states,
-            attentions=attentions
+            attentions=attentions,
+            original_tuple=output
         )
     
     return output
