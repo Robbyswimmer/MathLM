@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import inspect
 import json
+import sys
 from pathlib import Path
 
 from mathlm.data import (
@@ -130,7 +131,7 @@ def _patched_forward(self, *args, **kwargs):
         )
     return output
 
-print("Applying monkeypatch to AutoModelForCausalLMWithValueHead.forward...", file=sys.stderr, flush=True)
+print("Applying monkeypatch to AutoModelForCausalLMWithValueHead.forward...", flush=True)
 AutoModelForCausalLMWithValueHead.forward = _patched_forward
 
 # Add missing 'score' method which TRL v0.25.1 expects on the value model
@@ -140,7 +141,7 @@ if not hasattr(AutoModelForCausalLMWithValueHead, "score"):
     AutoModelForCausalLMWithValueHead.score = _score
 
 def verify_model_output(model, name="Model"):
-    print(f"Verifying output format for {name}...", file=sys.stderr, flush=True)
+    print(f"Verifying output format for {name}...", flush=True)
     try:
         # Get device safely
         device = getattr(model, "device", None)
@@ -148,38 +149,38 @@ def verify_model_output(model, name="Model"):
             device = getattr(model.pretrained_model, "device", None)
         if device is None:
             device = next(model.parameters()).device
-            
+
         # Create dummy input
         dummy_input = torch.tensor([[1, 2, 3]], device=device)
         dummy_mask = torch.tensor([[1, 1, 1]], device=device)
-        
+
         # Run forward pass
         with torch.no_grad():
             output = model(dummy_input, attention_mask=dummy_mask, return_dict=True)
-        
-        print(f"  Output type: {type(output)}", file=sys.stderr, flush=True)
+
+        print(f"  Output type: {type(output)}", flush=True)
         if hasattr(output, "logits"):
-            print(f"  ✓ Output has .logits attribute", file=sys.stderr, flush=True)
+            print(f"  ✓ Output has .logits attribute", flush=True)
         else:
-            print(f"  ✗ Output MISSING .logits attribute!", file=sys.stderr, flush=True)
-            
+            print(f"  ✗ Output MISSING .logits attribute!", flush=True)
+
         if hasattr(output, "value"):
-            print(f"  ✓ Output has .value attribute", file=sys.stderr, flush=True)
-            
+            print(f"  ✓ Output has .value attribute", flush=True)
+
         if isinstance(output, tuple):
-             print(f"  ! Output is a tuple (patched wrapper should handle this)", file=sys.stderr, flush=True)
-        
+             print(f"  ! Output is a tuple (patched wrapper should handle this)", flush=True)
+
         # Check iterability
         try:
             iter(output)
-            print(f"  ✓ Output is iterable", file=sys.stderr, flush=True)
+            print(f"  ✓ Output is iterable", flush=True)
         except TypeError:
-            print(f"  ✗ Output is NOT iterable!", file=sys.stderr, flush=True)
-            
+            print(f"  ✗ Output is NOT iterable!", flush=True)
+
     except Exception as e:
-        print(f"  ✗ Verification failed with error: {e}", file=sys.stderr, flush=True)
+        print(f"  ✗ Verification failed with error: {e}", flush=True)
         import traceback
-        traceback.print_exc(file=sys.stderr)
+        traceback.print_exc()
 # -------------------------------------------------
 
 
@@ -226,7 +227,7 @@ def main() -> None:
     args = parse_args()
 
     print("="*60, flush=True)
-    print("MathLM PPO Training - VERSION: PATCH_VERIFY_V1", file=sys.stderr, flush=True)
+    print("MathLM PPO Training - VERSION: PATCH_VERIFY_V1", flush=True)
     print("="*60, flush=True)
     print(f"Config: {args.config}", flush=True)
     print(f"Output dir: {args.output_dir}", flush=True)
