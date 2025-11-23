@@ -487,6 +487,7 @@ def main() -> None:
         gradient_accumulation_steps=getattr(config.training, "gradient_accumulation_steps", 4),
         fp16=False,
         bf16=True,
+        save_safetensors=False,  # Disable safetensors to avoid shared memory error
     )
 
     ppo_config.target_kl = config.training.kl_target

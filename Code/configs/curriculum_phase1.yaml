@@ -4,4 +4,4 @@ curriculum:
   split: easy
   max_problems: 1000
 training:
-  total_steps: 100000
+  total_steps: 10000  # Reduced from 100k for reasonable training time (~24 hours)
