@@ -26,6 +26,7 @@ from datasets import Dataset
 import torch
 from dataclasses import dataclass
 from typing import Optional, Tuple, Any
+import torch.nn as nn
 
 # --- Monkeypatch for TRL v0.25.1 Compatibility ---
 # TRL's AutoModelForCausalLMWithValueHead might return a tuple even with return_dict=True
@@ -490,6 +491,31 @@ def main() -> None:
     print("="*60, flush=True)
 
     # Use trainer.train() instead of custom runner
+    # Wrap ref_model to ensure dict outputs even if TRL bypasses our global patch
+    class SafeRefModel(nn.Module):
+        def __init__(self, base):
+            super().__init__()
+            self.base = base
+        def forward(self, *args, **kwargs):
+            kwargs["return_dict"] = True
+            out = self.base(*args, **kwargs)
+            if hasattr(out, "logits"):
+                return out
+            if isinstance(out, tuple) and out:
+                return CausalLMOutputWithValue(logits=out[0], original_tuple=out)
+            return out
+        def __getattr__(self, name):
+            try:
+                return super().__getattr__(name)
+            except AttributeError:
+                return getattr(self.base, name)
+
+    try:
+        trainer.ref_model = SafeRefModel(trainer.ref_model)
+        print("✓ Wrapped trainer.ref_model with SafeRefModel", flush=True)
+    except Exception as err:
+        print(f"! Failed to wrap trainer.ref_model: {err}", flush=True)
+
     trainer.train()
 
     print("\n" + "="*60, flush=True)
