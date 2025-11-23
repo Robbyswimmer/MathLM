@@ -452,10 +452,16 @@ def main() -> None:
         value_model=value_model,
     )
     print(f"✓ PPO trainer initialized", flush=True)
-    log_cuda_memory("After PPOTrainer init")
+log_cuda_memory("After PPOTrainer init")
 
     # Ensure wrapper and inner models expose gradient checkpointing toggles (TRL expects them)
     import types
+    for cls in (AutoModelForCausalLMWithValueHead,):
+        if not hasattr(cls, "gradient_checkpointing_disable"):
+            cls.gradient_checkpointing_disable = lambda self: None  # type: ignore
+        if not hasattr(cls, "gradient_checkpointing_enable"):
+            cls.gradient_checkpointing_enable = lambda self: None  # type: ignore
+
     def _ensure_gc_hooks(obj):
         if obj is None:
             return
