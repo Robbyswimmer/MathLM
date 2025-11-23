@@ -654,7 +654,6 @@ def main() -> None:
         print(f"! Error saving final model: {e}", flush=True)
         print("Attempting fallback save with PyTorch...", flush=True)
         try:
-            import torch
             torch.save(trainer.model.state_dict(), str(final_checkpoint / "pytorch_model.bin"))
             tokenizer.save_pretrained(str(final_checkpoint))
             print(f"✓ Model saved with PyTorch fallback", flush=True)
