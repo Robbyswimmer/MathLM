@@ -138,17 +138,22 @@ def main() -> None:
 
     print("\nInitializing PPO configuration...", flush=True)
     # Use config values directly, assuming bf16 is handled by config
+    # Initialize with safe arguments first
     ppo_config = PPOConfig(
         learning_rate=config.training.learning_rate,
         batch_size=config.training.batch_size,
         mini_batch_size=max(1, config.training.batch_size // 2),
-        target_kl=config.training.kl_target,
-        init_kl_coef=config.training.kl_target,
-        kl_penalty="kl",
         model_name=config.training.model_name,
-        bf16=getattr(config.training, "bf16", False),
-        fp16=not getattr(config.training, "bf16", False),
     )
+    
+    # Set other attributes explicitly to support varying TRL versions
+    if hasattr(config.training, "bf16"):
+        ppo_config.bf16 = config.training.bf16
+        ppo_config.fp16 = not config.training.bf16
+    
+    ppo_config.target_kl = config.training.kl_target
+    ppo_config.init_kl_coef = config.training.kl_target
+    ppo_config.kl_penalty = "kl"
 
     print("\nInitializing PPO trainer...", flush=True)
     trainer = PPOTrainer(
