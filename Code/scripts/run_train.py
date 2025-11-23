@@ -146,6 +146,12 @@ def main() -> None:
     if not hasattr(ref_model, "base_model_prefix"):
         ref_model.base_model_prefix = "pretrained_model"
 
+    # Restore is_gradient_checkpointing attribute (removed during cleanup but needed)
+    if not hasattr(model, 'is_gradient_checkpointing'):
+        model.is_gradient_checkpointing = False
+    if not hasattr(ref_model, 'is_gradient_checkpointing'):
+        ref_model.is_gradient_checkpointing = False
+
     # Create a simple reward model (unused for PPO but kept for compatibility)
     reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
     print("✓ Reward model loaded", flush=True)
