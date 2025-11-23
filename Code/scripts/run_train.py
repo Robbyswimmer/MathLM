@@ -58,8 +58,8 @@ class CausalLMOutputWithValue:
         return list(self)[idx]
 
 # --- Robust Fix for TRL v0.25.1 Compatibility ---
-# Monkeypatch AutoModelForCausalLMWithValueHead.forward to ensure it returns an object with .logits
-# and is also iterable (for TRL hooks).
+# We define a subclass with the fixed forward method and force the loaded models 
+# to use this class by swapping __class__. This ensures our forward is used.
 
 @dataclass
 class CausalLMOutputWithValue:
@@ -87,49 +87,46 @@ class CausalLMOutputWithValue:
     def __getitem__(self, idx):
         return list(self)[idx]
 
-_original_forward = AutoModelForCausalLMWithValueHead.forward
-
-def _patched_forward(self, *args, **kwargs):
-    # Force return_dict=True
-    kwargs["return_dict"] = True
-    output = _original_forward(self, *args, **kwargs)
-    
-    if isinstance(output, tuple):
-        logits = output[0]
-        value = output[-1]
-        past_key_values = None
-        hidden_states = None
-        attentions = None
+class PatchedAutoModelForCausalLMWithValueHead(AutoModelForCausalLMWithValueHead):
+    def forward(self, *args, **kwargs):
+        # Force return_dict=True
+        kwargs["return_dict"] = True
+        # Call the original parent forward (which calls pretrained_model)
+        output = super().forward(*args, **kwargs)
         
-        if len(output) >= 2:
-            if isinstance(output[1], tuple):
-                past_key_values = output[1]
-        
-        for item in output:
-            if isinstance(item, tuple) and len(item) > 0 and isinstance(item[0], torch.Tensor):
-                if item[0].dim() == 3:
-                    hidden_states = item
-                elif item[0].dim() == 4:
-                    attentions = item
-                    
-        return CausalLMOutputWithValue(
-            logits=logits, 
-            value=value, 
-            past_key_values=past_key_values,
-            hidden_states=hidden_states,
-            attentions=attentions,
-            original_tuple=output
-        )
-    return output
+        if isinstance(output, tuple):
+            logits = output[0]
+            value = output[-1]
+            past_key_values = None
+            hidden_states = None
+            attentions = None
+            
+            if len(output) >= 2:
+                if isinstance(output[1], tuple):
+                    past_key_values = output[1]
+            
+            for item in output:
+                if isinstance(item, tuple) and len(item) > 0 and isinstance(item[0], torch.Tensor):
+                    if item[0].dim() == 3:
+                        hidden_states = item
+                    elif item[0].dim() == 4:
+                        attentions = item
+                        
+            return CausalLMOutputWithValue(
+                logits=logits, 
+                value=value, 
+                past_key_values=past_key_values,
+                hidden_states=hidden_states,
+                attentions=attentions,
+                original_tuple=output
+            )
+        return output
 
-print("Applying monkeypatch to AutoModelForCausalLMWithValueHead.forward...", flush=True)
-AutoModelForCausalLMWithValueHead.forward = _patched_forward
-
-# Add missing 'score' method which TRL v0.25.1 expects on the value model
-if not hasattr(AutoModelForCausalLMWithValueHead, "score"):
+# Add missing 'score' method to the subclass
+if not hasattr(PatchedAutoModelForCausalLMWithValueHead, "score"):
     def _score(self, hidden_states):
         return self.v_head(hidden_states)
-    AutoModelForCausalLMWithValueHead.score = _score
+    PatchedAutoModelForCausalLMWithValueHead.score = _score
 # -------------------------------------------------
 
 
@@ -247,6 +244,12 @@ def main() -> None:
         torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
         device_map="cpu",
     )
+
+    # Force the models to use our patched class
+    # This is a robust way to ensure our forward method is used
+    model.__class__ = PatchedAutoModelForCausalLMWithValueHead
+    ref_model.__class__ = PatchedAutoModelForCausalLMWithValueHead
+    print("✓ Patched model classes to handle tuple outputs", flush=True)
 
     print("✓ Model loaded on GPU, reference model on CPU", flush=True)
 
