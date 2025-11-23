@@ -24,6 +24,8 @@ class DataConfig:
     source: str
     curriculum_split: str
     max_problems: int | None
+    raw_file: str | None = None
+    parquet_file: str | None = None
 
 
 @dataclass
@@ -51,6 +53,8 @@ def parse_config(config: Dict[str, Any]) -> ExperimentConfig:
         source=data_cfg.get("source", "huggingface"),
         curriculum_split=curriculum.get("split", "full"),
         max_problems=curriculum.get("max_problems"),
+        raw_file=data_cfg.get("raw_file"),
+        parquet_file=data_cfg.get("parquet_file"),
     )
     training = TrainingConfig(
         model_name=training_cfg.get("model_name") or config.get("model_name", "models/gemma-2-2b-it"),
