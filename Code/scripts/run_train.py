@@ -284,9 +284,10 @@ def main() -> None:
         learning_rate=config.training.learning_rate,
         batch_size=config.training.batch_size,
         mini_batch_size=1,
-        target_kl=config.training.kl_target,
-        init_kl_coef=config.training.kl_target,
     )
+    
+    ppo_config.target_kl = config.training.kl_target
+    ppo_config.init_kl_coef = config.training.kl_target
     
     # Set other attributes explicitly to support varying TRL versions
     if hasattr(config.training, "bf16"):
