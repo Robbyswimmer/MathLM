@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import torch
 from pathlib import Path
 
 from mathlm.data import ensure_raw_split, load_raw_split
 from mathlm.prompts.zero_shot import get_zero_shot_prompt
 from mathlm.rewards import RewardCalculator, RewardWeights
+from safetensors.torch import save_file
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 
@@ -31,6 +33,18 @@ def main():
     print(f"Checkpoint: {args.checkpoint}")
     print(f"Split: {args.split}")
     print("="*60)
+
+    # Auto-convert PyTorch checkpoint to safetensors if needed
+    checkpoint_path = Path(args.checkpoint)
+    bin_file = checkpoint_path / "pytorch_model.bin"
+    safetensors_file = checkpoint_path / "model.safetensors"
+
+    if bin_file.exists() and not safetensors_file.exists():
+        print("\n⚠ Converting PyTorch checkpoint to safetensors format...")
+        state_dict = torch.load(bin_file, map_location="cpu", weights_only=False)
+        save_file(state_dict, str(safetensors_file))
+        bin_file.unlink()
+        print("✓ Converted to safetensors")
 
     # Load model and tokenizer
     print("\nLoading model and tokenizer...")
