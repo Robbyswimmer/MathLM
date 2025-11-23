@@ -304,11 +304,12 @@ def main() -> None:
         torch_dtype=torch.float32,
     )
 
-    # Load reference model on same device as policy to avoid device mismatches
+    # Load reference model on CPU to save VRAM; we will move logits to GPU when needed
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.training.model_name,
         return_dict=True,
         torch_dtype=torch.float32,
+        device_map="cpu",
     )
     log_cuda_memory("After model + ref_model load")
 
@@ -323,12 +324,7 @@ def main() -> None:
     verify_model_output(ref_model, "Ref Model")
     log_cuda_memory("After verify_model_output")
 
-    # Align reference model device with policy model
-    try:
-        ref_model.to(model.device)
-    except Exception:
-        pass
-    print("✓ Models loaded", flush=True)
+    print("✓ Models loaded (policy on GPU, ref on CPU)", flush=True)
 
     # Ensure generation_config is accessible on the wrapper for TRL v0.25.1+
     # The wrapper (AutoModelForCausalLMWithValueHead) might not expose it directly
