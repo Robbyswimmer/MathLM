@@ -148,6 +148,10 @@ def main() -> None:
         model.generation_config.pad_token_id = tokenizer.pad_token_id
         ref_model.generation_config.pad_token_id = tokenizer.pad_token_id
 
+    # Ensure models return dicts (required by TRL v0.25.1+)
+    model.config.return_dict = True
+    ref_model.config.return_dict = True
+
     # Fix for TRL v0.25.1: Ensure base_model_prefix is set
     # AutoModelForCausalLMWithValueHead wraps the transformer in 'pretrained_model'
     if not hasattr(model, "base_model_prefix"):
