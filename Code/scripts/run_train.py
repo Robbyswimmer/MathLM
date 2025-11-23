@@ -234,14 +234,14 @@ def main() -> None:
 
     # Load model with value head for PPO
     # Use our patched class to ensure correct output format
-    model = PatchedAutoModelForCausalLMWithValueHead.from_pretrained(
+    model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.training.model_name,
         return_dict=True,
         torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
     )
 
     # Load reference model on CPU to save GPU memory, will be moved to GPU batch-by-batch
-    ref_model = PatchedAutoModelForCausalLMWithValueHead.from_pretrained(
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.training.model_name,
         return_dict=True,
         torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
