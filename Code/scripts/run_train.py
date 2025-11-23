@@ -59,8 +59,8 @@ class CausalLMOutputWithValue:
 
 # --- Robust Fix for TRL v0.25.1 Compatibility ---
 # --- Robust Fix for TRL v0.25.1 Compatibility ---
-# We define a subclass with the fixed forward method and use it to load the models.
-# This ensures our forward method is always used.
+# Monkeypatch AutoModelForCausalLMWithValueHead.forward to ensure it returns an object with .logits
+# and is also iterable (for TRL hooks).
 
 @dataclass
 class CausalLMOutputWithValue:
@@ -88,46 +88,91 @@ class CausalLMOutputWithValue:
     def __getitem__(self, idx):
         return list(self)[idx]
 
-class PatchedAutoModelForCausalLMWithValueHead(AutoModelForCausalLMWithValueHead):
-    def forward(self, *args, **kwargs):
-        # Force return_dict=True
-        kwargs["return_dict"] = True
-        # Call the original parent forward (which calls pretrained_model)
-        output = super().forward(*args, **kwargs)
-        
-        if isinstance(output, tuple):
-            logits = output[0]
-            value = output[-1]
-            past_key_values = None
-            hidden_states = None
-            attentions = None
-            
-            if len(output) >= 2:
-                if isinstance(output[1], tuple):
-                    past_key_values = output[1]
-            
-            for item in output:
-                if isinstance(item, tuple) and len(item) > 0 and isinstance(item[0], torch.Tensor):
-                    if item[0].dim() == 3:
-                        hidden_states = item
-                    elif item[0].dim() == 4:
-                        attentions = item
-                        
-            return CausalLMOutputWithValue(
-                logits=logits, 
-                value=value, 
-                past_key_values=past_key_values,
-                hidden_states=hidden_states,
-                attentions=attentions,
-                original_tuple=output
-            )
+_original_forward = AutoModelForCausalLMWithValueHead.forward
+
+def _patched_forward(self, *args, **kwargs):
+    # Force return_dict=True
+    kwargs["return_dict"] = True
+    
+    # Call original forward
+    output = _original_forward(self, *args, **kwargs)
+    
+    # If it's already a dict/object with logits, return it
+    if hasattr(output, "logits"):
         return output
 
-# Add missing 'score' method to the subclass
-if not hasattr(PatchedAutoModelForCausalLMWithValueHead, "score"):
+    # If it's a tuple, convert it
+    if isinstance(output, tuple):
+        logits = output[0]
+        value = output[-1]
+        past_key_values = None
+        hidden_states = None
+        attentions = None
+        
+        if len(output) >= 2:
+            if isinstance(output[1], tuple):
+                past_key_values = output[1]
+        
+        for item in output:
+            if isinstance(item, tuple) and len(item) > 0 and isinstance(item[0], torch.Tensor):
+                if item[0].dim() == 3:
+                    hidden_states = item
+                elif item[0].dim() == 4:
+                    attentions = item
+                    
+        return CausalLMOutputWithValue(
+            logits=logits, 
+            value=value, 
+            past_key_values=past_key_values,
+            hidden_states=hidden_states,
+            attentions=attentions,
+            original_tuple=output
+        )
+    return output
+
+print("Applying monkeypatch to AutoModelForCausalLMWithValueHead.forward...", flush=True)
+AutoModelForCausalLMWithValueHead.forward = _patched_forward
+
+# Add missing 'score' method which TRL v0.25.1 expects on the value model
+if not hasattr(AutoModelForCausalLMWithValueHead, "score"):
     def _score(self, hidden_states):
         return self.v_head(hidden_states)
-    PatchedAutoModelForCausalLMWithValueHead.score = _score
+    AutoModelForCausalLMWithValueHead.score = _score
+
+def verify_model_output(model, name="Model"):
+    print(f"Verifying output format for {name}...", flush=True)
+    try:
+        # Create dummy input
+        dummy_input = torch.tensor([[1, 2, 3]], device=model.device)
+        dummy_mask = torch.tensor([[1, 1, 1]], device=model.device)
+        
+        # Run forward pass
+        with torch.no_grad():
+            output = model(dummy_input, attention_mask=dummy_mask, return_dict=True)
+        
+        print(f"  Output type: {type(output)}", flush=True)
+        if hasattr(output, "logits"):
+            print(f"  ✓ Output has .logits attribute", flush=True)
+        else:
+            print(f"  ✗ Output MISSING .logits attribute!", flush=True)
+            
+        if hasattr(output, "value"):
+            print(f"  ✓ Output has .value attribute", flush=True)
+            
+        if isinstance(output, tuple):
+             print(f"  ! Output is a tuple (patched wrapper should handle this)", flush=True)
+        
+        # Check iterability
+        try:
+            iter(output)
+            print(f"  ✓ Output is iterable", flush=True)
+        except TypeError:
+            print(f"  ✗ Output is NOT iterable!", flush=True)
+            
+    except Exception as e:
+        print(f"  ✗ Verification failed with error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
 # -------------------------------------------------
 
 
@@ -231,21 +276,29 @@ def main() -> None:
         tokenizer.pad_token = tokenizer.eos_token
 
     # Load model with value head for PPO
-    model = PatchedAutoModelForCausalLMWithValueHead.from_pretrained(
+    model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.training.model_name,
         return_dict=True,
         torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
     )
 
     # Load reference model on CPU to save GPU memory, will be moved to GPU batch-by-batch
-    ref_model = PatchedAutoModelForCausalLMWithValueHead.from_pretrained(
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.training.model_name,
         return_dict=True,
         torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
         device_map="cpu",
     )
 
-    print("✓ Patched model classes to handle tuple outputs", flush=True)
+    # Explicitly patch instances to ensure our forward is used
+    import types
+    model.forward = types.MethodType(_patched_forward, model)
+    ref_model.forward = types.MethodType(_patched_forward, ref_model)
+    print("✓ Patched model instances to handle tuple outputs", flush=True)
+    
+    # Verify output format
+    verify_model_output(model, "Policy Model")
+    # verify_model_output(ref_model, "Ref Model") # Skip ref model as it is on CPU and might be slow or OOM if moved
 
     print("✓ Model loaded on GPU, reference model on CPU", flush=True)
 
