@@ -246,8 +246,20 @@ def main() -> None:
 
     # Restore is_gradient_checkpointing attribute (removed during cleanup but needed)
     if not hasattr(model, 'is_gradient_checkpointing'):
-        model.is_gradient_checkpointing = False
-    if not hasattr(ref_model, 'is_gradient_checkpointing'):
+        model.is_gradient_checkpointing = True
+        
+    # Enable gradient checkpointing to save memory
+    if hasattr(model, "gradient_checkpointing_enable"):
+        model.gradient_checkpointing_enable()
+        model.config.use_cache = False # Required for gradient checkpointing
+        
+    # Limit generation length to avoid OOM
+    if hasattr(model, "generation_config"):
+        model.generation_config.max_new_tokens = 512
+        model.generation_config.min_new_tokens = 1
+    if hasattr(ref_model, "generation_config"):
+        ref_model.generation_config.max_new_tokens = 512
+        ref_model.generation_config.min_new_tokens = 1
         ref_model.is_gradient_checkpointing = False
 
     # Create a simple reward model (unused for PPO but kept for compatibility)
