@@ -143,7 +143,6 @@ def main() -> None:
         learning_rate=config.training.learning_rate,
         batch_size=config.training.batch_size,
         mini_batch_size=max(1, config.training.batch_size // 2),
-        model_name=config.training.model_name,
     )
     
     # Set other attributes explicitly to support varying TRL versions
@@ -154,6 +153,7 @@ def main() -> None:
     ppo_config.target_kl = config.training.kl_target
     ppo_config.init_kl_coef = config.training.kl_target
     ppo_config.kl_penalty = "kl"
+    ppo_config.model_name = config.training.model_name
 
     print("\nInitializing PPO trainer...", flush=True)
     trainer = PPOTrainer(
