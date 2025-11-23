@@ -151,6 +151,10 @@ def main() -> None:
     # Ensure models return dicts (required by TRL v0.25.1+)
     model.config.return_dict = True
     ref_model.config.return_dict = True
+    if hasattr(model, "pretrained_model"):
+        model.pretrained_model.config.return_dict = True
+    if hasattr(ref_model, "pretrained_model"):
+        ref_model.pretrained_model.config.return_dict = True
 
     # Fix for TRL v0.25.1: Ensure base_model_prefix is set
     # AutoModelForCausalLMWithValueHead wraps the transformer in 'pretrained_model'
