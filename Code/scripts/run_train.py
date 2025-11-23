@@ -249,6 +249,13 @@ def main() -> None:
     if not hasattr(ref_model, 'is_gradient_checkpointing'):
         ref_model.is_gradient_checkpointing = False
 
+    # Fix potential circular references in model structure
+    # Some versions of AutoModelForCausalLMWithValueHead have issues
+    if hasattr(model, 'pretrained_model') and hasattr(model.pretrained_model, 'v_head'):
+        delattr(model.pretrained_model, 'v_head')
+    if hasattr(ref_model, 'pretrained_model') and hasattr(ref_model.pretrained_model, 'v_head'):
+        delattr(ref_model.pretrained_model, 'v_head')
+
     print("✓ Model and reference model loaded", flush=True)
 
     # Create a simple reward model (unused for PPO but kept for compatibility)
@@ -332,6 +339,7 @@ def main() -> None:
         trainer_kwargs["train_dataset"] = hf_dataset
     if "reward_model" in param_names:
         trainer_kwargs["reward_model"] = reward_model
+    # value_model should be the v_head, not the whole model
     if "value_model" in param_names and value_model is not None:
         trainer_kwargs["value_model"] = value_model
 
