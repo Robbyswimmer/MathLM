@@ -156,7 +156,7 @@ def main() -> None:
     print(f"✓ Dataset prepared: {len(hf_dataset)} examples", flush=True)
 
     print("\nInitializing PPO configuration...", flush=True)
-    ppo_config = PPOConfig(model_name=config.training.model_name)
+    ppo_config = PPOConfig()
     # Populate common knobs; setattr guards against version differences.
     for key, value in [
         ("learning_rate", config.training.learning_rate),
@@ -165,6 +165,7 @@ def main() -> None:
         ("target_kl", config.training.kl_target),
         ("init_kl_coef", config.training.kl_target),
         ("kl_penalty", "kl"),
+        ("model_name", config.training.model_name),
     ]:
         try:
             setattr(ppo_config, key, value)
