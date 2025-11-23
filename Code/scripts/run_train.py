@@ -283,7 +283,9 @@ def main() -> None:
     ppo_config = PPOConfig(
         learning_rate=config.training.learning_rate,
         batch_size=config.training.batch_size,
-        mini_batch_size=max(1, config.training.batch_size // 2),
+        mini_batch_size=1,
+        target_kl=config.training.kl_target,
+        init_kl_coef=config.training.kl_target,
     )
     
     # Set other attributes explicitly to support varying TRL versions
@@ -291,8 +293,6 @@ def main() -> None:
         ppo_config.bf16 = config.training.bf16
         ppo_config.fp16 = not config.training.bf16
     
-    ppo_config.target_kl = config.training.kl_target
-    ppo_config.init_kl_coef = config.training.kl_target
     ppo_config.kl_penalty = "kl"
     ppo_config.model_name = config.training.model_name
     
