@@ -452,7 +452,7 @@ def main() -> None:
         value_model=value_model,
     )
     print(f"✓ PPO trainer initialized", flush=True)
-log_cuda_memory("After PPOTrainer init")
+    log_cuda_memory("After PPOTrainer init")
 
     # Ensure wrapper and inner models expose gradient checkpointing toggles (TRL expects them)
     import types
@@ -475,7 +475,6 @@ log_cuda_memory("After PPOTrainer init")
     _ensure_gc_hooks(getattr(trainer.model, "pretrained_model", None))
 
     # Patch trainer models to always yield logits (handles tuple outputs)
-    import types
     def _patch_module_outputs(module, label: str) -> None:
         if module is None:
             return
