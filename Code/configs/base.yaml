@@ -19,7 +19,7 @@ reward_weights:
   penalty: -0.5
 training:
   model_name: models/gemma-2-2b-it
-  batch_size: 21
+  batch_size: 2
   gradient_accumulation_steps: 4
   learning_rate: 1.0e-5
   kl_target: 0.08
