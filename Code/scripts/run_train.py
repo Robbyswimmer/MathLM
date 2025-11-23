@@ -383,7 +383,7 @@ def main() -> None:
     input_ids = []
     attention_masks = []
     for ex in dataset.examples:
-        tokenized = tokenizer(ex.prompt, truncation=True, max_length=256)
+        tokenized = tokenizer(ex.prompt, truncation=True, max_length=128)
         input_ids.append(tokenized["input_ids"])
         attention_masks.append(tokenized["attention_mask"])
 
@@ -401,9 +401,9 @@ def main() -> None:
     # Initialize with safe arguments first
     ppo_config = PPOConfig(
         learning_rate=config.training.learning_rate,
-        batch_size=config.training.batch_size,
+        batch_size=1,  # force tiny batch to fit GPU
         mini_batch_size=1,
-        gradient_accumulation_steps=getattr(config.training, "gradient_accumulation_steps", 1),
+        gradient_accumulation_steps=1,
         fp16=False,
         bf16=False,
     )
