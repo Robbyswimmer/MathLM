@@ -329,6 +329,32 @@ def main() -> None:
     )
     print(f"✓ PPO trainer initialized", flush=True)
 
+    # --- Fix for TRL v0.25.1: PolicyAndValueWrapper missing gradient_checkpointing methods ---
+    # The wrapper created by PPOTrainer doesn't expose these methods, causing crash in unwrap_model_for_generation
+    if not hasattr(trainer.model, "gradient_checkpointing_disable"):
+        print("Patching trainer.model with gradient_checkpointing_disable", flush=True)
+        def _disable_gc(self):
+            # Try to propagate to policy/model
+            if hasattr(self, "policy") and hasattr(self.policy, "gradient_checkpointing_disable"):
+                self.policy.gradient_checkpointing_disable()
+            if hasattr(self, "model") and hasattr(self.model, "gradient_checkpointing_disable"):
+                self.model.gradient_checkpointing_disable()
+                
+        import types
+        trainer.model.gradient_checkpointing_disable = types.MethodType(_disable_gc, trainer.model)
+
+    if not hasattr(trainer.model, "gradient_checkpointing_enable"):
+        print("Patching trainer.model with gradient_checkpointing_enable", flush=True)
+        def _enable_gc(self):
+            if hasattr(self, "policy") and hasattr(self.policy, "gradient_checkpointing_enable"):
+                self.policy.gradient_checkpointing_enable()
+            if hasattr(self, "model") and hasattr(self.model, "gradient_checkpointing_enable"):
+                self.model.gradient_checkpointing_enable()
+
+        import types
+        trainer.model.gradient_checkpointing_enable = types.MethodType(_enable_gc, trainer.model)
+    # ---------------------------------------------------------------------------------------
+
     print("\n" + "="*60, flush=True)
     print("STARTING PPO TRAINING", flush=True)
     print("="*60, flush=True)
