@@ -127,12 +127,24 @@ def main() -> None:
     print(f"  KL target: {config.training.kl_target}", flush=True)
     print(f"  Total steps: {config.training.total_steps}", flush=True)
 
+    # PPOConfig parameters based on TRL library
     ppo_config = PPOConfig(
-        batch_size=config.training.batch_size,
         learning_rate=config.training.learning_rate,
-        target_kl=config.training.kl_target,
+        kl_penalty="kl",  # KL penalty type
+        init_kl_coef=0.2,  # Initial KL coefficient
+        target=config.training.kl_target,  # Target KL divergence
+        batch_size=config.training.batch_size,
+        mini_batch_size=config.training.batch_size // 4,  # Smaller mini-batches for gradient updates
     )
-    trainer = PPOTrainer(ppo_config, model, None, tokenizer)
+
+    # PPOTrainer expects (config, model, ref_model, tokenizer)
+    # ref_model can be None to use the same model as reference
+    trainer = PPOTrainer(
+        config=ppo_config,
+        model=model,
+        ref_model=None,
+        tokenizer=tokenizer,
+    )
     print("✓ PPO trainer initialized", flush=True)
 
     runner = MathLMPPORunner(
