@@ -226,7 +226,7 @@ def main() -> None:
     args = parse_args()
 
     print("="*60, flush=True)
-    print("MathLM PPO Training", flush=True)
+    print("MathLM PPO Training - VERSION: PATCH_VERIFY_V1", flush=True)
     print("="*60, flush=True)
     print(f"Config: {args.config}", flush=True)
     print(f"Output dir: {args.output_dir}", flush=True)
@@ -305,7 +305,7 @@ def main() -> None:
     
     # Verify output format
     verify_model_output(model, "Policy Model")
-    # verify_model_output(ref_model, "Ref Model") # Skip ref model as it is on CPU and might be slow or OOM if moved
+    verify_model_output(ref_model, "Ref Model")
 
     print("✓ Model loaded on GPU, reference model on CPU", flush=True)
 
