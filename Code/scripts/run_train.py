@@ -43,8 +43,7 @@ def bootstrap_data(config: ExperimentConfig, data_dir: Path) -> Path:
         split=config.data.curriculum_split,
         max_problems=config.data.max_problems,
     )
-        max_problems=config.data.max_problems,
-    )
+
     raw_file = getattr(config.data, "raw_file", None)
     parquet_file = getattr(config.data, "parquet_file", None)
     raw_path = ensure_raw_split(
