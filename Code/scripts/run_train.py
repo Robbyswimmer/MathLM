@@ -21,6 +21,7 @@ from mathlm.utils import ExperimentConfig, parse_config
 from mathlm.utils.yaml_loader import load_config as load_yaml_config
 
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
+import trl.models.utils as trl_utils
 from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
 from datasets import Dataset
 import torch
@@ -28,6 +29,20 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, Any
 import torch.nn as nn
 import math
+from contextlib import contextmanager
+import trl.models.utils as trl_utils
+
+# Monkeypatch unwrap_model_for_generation to skip gradient checkpointing toggles if missing
+_orig_unwrap_for_gen = getattr(trl_utils, "unwrap_model_for_generation", None)
+_orig_unwrap = getattr(trl_utils, "unwrap_model", None)
+if _orig_unwrap_for_gen is not None and _orig_unwrap is not None:
+    def safe_unwrap_model_for_generation(model):
+        @contextmanager
+        def _ctx():
+            unwrapped = _orig_unwrap(model)
+            yield unwrapped
+        return _ctx()
+    trl_utils.unwrap_model_for_generation = safe_unwrap_model_for_generation  # type: ignore
 
 # --- Monkeypatch for TRL v0.25.1 Compatibility ---
 # TRL's AutoModelForCausalLMWithValueHead might return a tuple even with return_dict=True
