@@ -116,9 +116,17 @@ class MathLMPPORunner:
         """Return (gen_model, device) suitable for .generate()."""
         trainer = self.trainer
         assert trainer is not None
-        # In modern TRL, trainer.model is the value-head model, which wraps the transformer
-        # We can generate directly from it or its pretrained_model
-        model = trainer.model
+        
+        # TRL v0.25.1+: trainer.model is PolicyAndValueWrapper which doesn't have .generate()
+        # We need the underlying policy model.
+        if hasattr(trainer, "policy"):
+            model = trainer.policy
+        elif hasattr(trainer.model, "policy"):
+            model = trainer.model.policy
+        else:
+            # Fallback for older versions or if wrapper is different
+            model = trainer.model
+            
         device = next(model.parameters()).device
         return model, device
 
