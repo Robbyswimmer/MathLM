@@ -242,6 +242,13 @@ def main() -> None:
     # Load model with value head for PPO
     model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name)
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name)
+
+    # Add missing attributes that TRL expects
+    if not hasattr(model, 'is_gradient_checkpointing'):
+        model.is_gradient_checkpointing = False
+    if not hasattr(ref_model, 'is_gradient_checkpointing'):
+        ref_model.is_gradient_checkpointing = False
+
     print("✓ Model and reference model loaded", flush=True)
 
     # Create a simple reward model (unused for PPO but kept for compatibility)
