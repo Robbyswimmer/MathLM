@@ -47,7 +47,15 @@ class MathRewardModel(nn.Module):
             breakdown = self.reward_calc.evaluate(question_part, response_part)
             rewards.append(breakdown.total)
             
-        rewards_tensor = torch.tensor(rewards, dtype=torch.float32, device=input_ids.device)
+        # TRL expects a tensor of shape [batch_size, seq_len] (or [batch_size, seq_len, 1])
+        # We place the reward at the last token position.
+        batch_size = input_ids.shape[0]
+        seq_len = input_ids.shape[1]
+        rewards_tensor = torch.zeros(batch_size, seq_len, dtype=torch.float32, device=input_ids.device)
+        
+        # Assign rewards to the last token of each sequence
+        for i, r in enumerate(rewards):
+            rewards_tensor[i, -1] = r
         
         # TRL expects output.hidden_states[-1] to be passed to score()
         # We wrap our rewards in a dummy object.
