@@ -80,6 +80,10 @@ def _ensure_base_prefix(module) -> None:
         return
     if not hasattr(module, "base_model_prefix"):
         setattr(module, "base_model_prefix", "model")
+    # Ensure an attribute matching base_model_prefix exists
+    prefix = getattr(module, "base_model_prefix", "model")
+    if not hasattr(module, prefix):
+        setattr(module, prefix, module)
 
 
 def main() -> None:
