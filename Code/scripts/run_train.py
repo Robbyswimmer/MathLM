@@ -43,7 +43,17 @@ def bootstrap_data(config: ExperimentConfig, data_dir: Path) -> Path:
         split=config.data.curriculum_split,
         max_problems=config.data.max_problems,
     )
-    raw_path = ensure_raw_split(config.data.split, data_dir, source=config.data.source)
+        max_problems=config.data.max_problems,
+    )
+    raw_file = getattr(config.data, "raw_file", None)
+    parquet_file = getattr(config.data, "parquet_file", None)
+    raw_path = ensure_raw_split(
+        config.data.split, 
+        data_dir, 
+        source=config.data.source, 
+        raw_file=raw_file,
+        parquet_file=parquet_file
+    )
     examples = load_raw_split(raw_path)
     subset = apply_curriculum(examples, curriculum)
     processed_path = data_dir / "processed" / f"gsm8k_{config.data.split}_{curriculum.split}.jsonl"

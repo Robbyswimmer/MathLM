@@ -2,6 +2,11 @@
 data:
   split: train
   source: huggingface
+  # Optional: path to a local JSONL file to use as raw data
+  # raw_file: data/processed/gsm8k_train_full.jsonl
+  # Optional: path to a local Parquet file to convert
+  parquet_file: data/gsm8k_raw/main/train-00000-of-00001.parquet
+  source: parquet
 prompting:
   shots: 0
   template: default
