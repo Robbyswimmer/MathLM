@@ -662,7 +662,9 @@ def main() -> None:
     final_checkpoint.mkdir(parents=True, exist_ok=True)
     print(f"\nSaving final model to {final_checkpoint}...", flush=True)
     try:
-        trainer.save_model(str(final_checkpoint))
+        # Save the underlying pretrained model (not the TRL wrapper)
+        # This ensures config.json is saved properly
+        trainer.model.pretrained_model.save_pretrained(str(final_checkpoint))
         tokenizer.save_pretrained(str(final_checkpoint))
         print(f"✓ Final model saved successfully", flush=True)
     except Exception as e:

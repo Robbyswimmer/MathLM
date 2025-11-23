@@ -9,8 +9,7 @@ from pathlib import Path
 from mathlm.data import ensure_raw_split, load_raw_split
 from mathlm.prompts.zero_shot import get_zero_shot_prompt
 from mathlm.rewards import RewardCalculator, RewardWeights
-from transformers import AutoTokenizer
-from trl import AutoModelForCausalLMWithValueHead
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 
 def parse_args():
@@ -36,8 +35,7 @@ def main():
     # Load model and tokenizer
     print("\nLoading model and tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(str(args.checkpoint))
-    model_wrapper = AutoModelForCausalLMWithValueHead.from_pretrained(str(args.checkpoint))
-    model = model_wrapper.pretrained_model  # Extract the base model for generation
+    model = AutoModelForCausalLM.from_pretrained(str(args.checkpoint))
     model.eval()
     print("✓ Model loaded")
 
