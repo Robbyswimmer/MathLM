@@ -120,6 +120,25 @@ def main() -> None:
 
     print("✓ Model and reference model loaded", flush=True)
 
+    # Ensure generation_config is accessible on the wrapper for TRL v0.25.1+
+    # The wrapper (AutoModelForCausalLMWithValueHead) might not expose it directly
+    if not hasattr(model, "generation_config"):
+        if hasattr(model, "pretrained_model"):
+            model.generation_config = model.pretrained_model.generation_config
+        else:
+            model.generation_config = GenerationConfig.from_model_config(model.config)
+    
+    if not hasattr(ref_model, "generation_config"):
+        if hasattr(ref_model, "pretrained_model"):
+            ref_model.generation_config = ref_model.pretrained_model.generation_config
+        else:
+            ref_model.generation_config = GenerationConfig.from_model_config(ref_model.config)
+            
+    # Also ensure pad_token_id is set in generation_config if available
+    if tokenizer.pad_token_id is not None:
+        model.generation_config.pad_token_id = tokenizer.pad_token_id
+        ref_model.generation_config.pad_token_id = tokenizer.pad_token_id
+
     # Create a simple reward model (unused for PPO but kept for compatibility)
     reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
     print("✓ Reward model loaded", flush=True)
