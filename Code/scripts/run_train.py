@@ -465,10 +465,24 @@ def main() -> None:
     def _ensure_gc_hooks(obj):
         if obj is None:
             return
-        if not hasattr(obj, "gradient_checkpointing_disable"):
-            obj.gradient_checkpointing_disable = types.MethodType(lambda self: None, obj)
-        if not hasattr(obj, "gradient_checkpointing_enable"):
-            obj.gradient_checkpointing_enable = types.MethodType(lambda self: None, obj)
+        cls = obj.__class__
+        try:
+            if not hasattr(cls, "gradient_checkpointing_disable"):
+                setattr(cls, "gradient_checkpointing_disable", lambda self: None)
+            if not hasattr(cls, "gradient_checkpointing_enable"):
+                setattr(cls, "gradient_checkpointing_enable", lambda self: None)
+        except Exception:
+            # Fallback to instance-level attachment if class is frozen
+            if not hasattr(obj, "gradient_checkpointing_disable"):
+                try:
+                    obj.gradient_checkpointing_disable = types.MethodType(lambda self: None, obj)
+                except Exception:
+                    pass
+            if not hasattr(obj, "gradient_checkpointing_enable"):
+                try:
+                    obj.gradient_checkpointing_enable = types.MethodType(lambda self: None, obj)
+                except Exception:
+                    pass
 
     _ensure_gc_hooks(getattr(trainer, "model", None))
     _ensure_gc_hooks(getattr(trainer.model, "policy_model", None))
