@@ -139,6 +139,13 @@ def main() -> None:
         model.generation_config.pad_token_id = tokenizer.pad_token_id
         ref_model.generation_config.pad_token_id = tokenizer.pad_token_id
 
+    # Fix for TRL v0.25.1: Ensure base_model_prefix is set
+    # AutoModelForCausalLMWithValueHead wraps the transformer in 'pretrained_model'
+    if not hasattr(model, "base_model_prefix"):
+        model.base_model_prefix = "pretrained_model"
+    if not hasattr(ref_model, "base_model_prefix"):
+        ref_model.base_model_prefix = "pretrained_model"
+
     # Create a simple reward model (unused for PPO but kept for compatibility)
     reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
     print("✓ Reward model loaded", flush=True)
