@@ -142,9 +142,16 @@ if not hasattr(AutoModelForCausalLMWithValueHead, "score"):
 def verify_model_output(model, name="Model"):
     print(f"Verifying output format for {name}...", flush=True)
     try:
+        # Get device safely
+        device = getattr(model, "device", None)
+        if device is None and hasattr(model, "pretrained_model"):
+            device = getattr(model.pretrained_model, "device", None)
+        if device is None:
+            device = next(model.parameters()).device
+            
         # Create dummy input
-        dummy_input = torch.tensor([[1, 2, 3]], device=model.device)
-        dummy_mask = torch.tensor([[1, 1, 1]], device=model.device)
+        dummy_input = torch.tensor([[1, 2, 3]], device=device)
+        dummy_mask = torch.tensor([[1, 1, 1]], device=device)
         
         # Run forward pass
         with torch.no_grad():
