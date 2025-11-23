@@ -19,3 +19,4 @@ training:
   kl_target: 0.08
   entropy_coef: 0.01
   checkpoint_interval: 1000
+  bf16: true

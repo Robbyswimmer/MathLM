@@ -19,18 +19,9 @@ from mathlm.training import JSONLLogger, MathLMPPORunner, PromptDataset
 from mathlm.utils import ExperimentConfig, parse_config
 from mathlm.utils.yaml_loader import load_config as load_yaml_config
 
-try:
-    from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead  # type: ignore
-    from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig  # type: ignore
-    from datasets import Dataset  # type: ignore
-except Exception:  # pragma: no cover - TRL may be absent during scaffolding
-    PPOTrainer = None  # type: ignore
-    PPOConfig = None  # type: ignore
-    AutoTokenizer = None  # type: ignore
-    AutoModelForCausalLM = None  # type: ignore
-    AutoModelForCausalLMWithValueHead = None  # type: ignore
-    GenerationConfig = None  # type: ignore
-    Dataset = None  # type: ignore
+from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
+from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+from datasets import Dataset
 
 
 def load_experiment(config_path: Path) -> ExperimentConfig:
@@ -60,141 +51,7 @@ def bootstrap_data(config: ExperimentConfig, data_dir: Path) -> Path:
     return processed_path
 
 
-def _ensure_generation_config(model, tokenizer) -> None:
-    """Attach a GenerationConfig so TRL's PPOTrainer can set stop/pad tokens."""
-    if model is None or GenerationConfig is None:  # pragma: no cover - defensive
-        return
-    gen_cfg = getattr(model, "generation_config", None)
-    if gen_cfg is None:
-        gen_cfg = GenerationConfig.from_model_config(model.config)
-    if getattr(tokenizer, "pad_token_id", None) is not None:
-        gen_cfg.pad_token_id = tokenizer.pad_token_id
-    if getattr(tokenizer, "eos_token_id", None) is not None:
-        gen_cfg.eos_token_id = tokenizer.eos_token_id
-    model.generation_config = gen_cfg
 
-
-def _ensure_base_prefix(module) -> None:
-    """Some TRL versions expect base_model_prefix to exist."""
-    if module is None:  # pragma: no cover - defensive
-        return
-    # Prefer an existing backbone attribute if available
-    if hasattr(module, "pretrained_model"):
-        prefix = "pretrained_model"
-    elif hasattr(module, "model"):
-        prefix = "model"
-    elif hasattr(module, "transformer"):
-        prefix = "transformer"
-    else:
-        prefix = "model"
-    setattr(module, "base_model_prefix", prefix)
-    # Ensure an attribute matching base_model_prefix exists; avoid self-recursion
-    if not hasattr(module, prefix):
-        try:
-            import torch.nn as nn  # type: ignore
-            class _DummyBase(nn.Module):  # pragma: no cover - tiny helper
-                def __init__(self):
-                    super().__init__()
-            dummy = _DummyBase()
-        except Exception:  # pragma: no cover
-            class _Stub(nn.Module):  # type: ignore
-                def __init__(self):
-                    super().__init__()
-            dummy = _Stub()
-        setattr(module, prefix, dummy)
-
-
-def _init_ppo_config(train_cfg) -> PPOConfig:
-    """Create a PPOConfig that is compatible with the installed TRL version."""
-    sig = inspect.signature(PPOConfig.__init__)
-    param_names = set(sig.parameters.keys())
-
-    def build(**kwargs):
-        filtered = {k: v for k, v in kwargs.items() if k in param_names}
-        return PPOConfig(**filtered)
-
-    attempts = [
-        {"bf16": False, "fp16": True},
-        {"bf16": False, "fp16": False},
-        {},
-    ]
-    for attempt in attempts:
-        try:
-            cfg = build(**attempt)
-            break
-        except ValueError as err:
-            if "bf16" in str(err).lower():
-                continue
-            raise
-        except TypeError:
-            continue
-    else:  # pragma: no cover - should not happen
-        cfg = PPOConfig()
-
-    # Populate common knobs; setattr guards against version differences.
-    for key, value in [
-        ("learning_rate", train_cfg.learning_rate),
-        ("batch_size", train_cfg.batch_size),
-        ("mini_batch_size", max(1, train_cfg.batch_size // 2)),
-        ("target_kl", train_cfg.kl_target),
-        ("init_kl_coef", train_cfg.kl_target),
-        ("kl_penalty", "kl"),
-        ("model_name", train_cfg.model_name),
-    ]:
-        try:
-            setattr(cfg, key, value)
-        except Exception:
-            pass
-    return cfg
-
-
-def _make_ppo_config(training_cfg: ExperimentConfig) -> PPOConfig:
-    """Instantiate PPOConfig while guarding against version differences."""
-    kwargs = {}
-    cfg_sig = inspect.signature(PPOConfig.__init__)
-    valid_params = set(cfg_sig.parameters.keys())
-    # Prefer disabling bf16 for clusters without support; fall back to fp16 if available.
-    for key, value in [
-        ("bf16", False),
-        ("fp16", True),
-        ("half_precision_backend", "auto"),
-    ]:
-        if key in valid_params:
-            kwargs[key] = value
-    try:
-        ppo_config = PPOConfig(**kwargs)
-    except TypeError:
-        ppo_config = PPOConfig(bf16=False, fp16=False)
-    # Set common attributes post-init defensively.
-    for key, value in [
-        ("learning_rate", training_cfg.training.learning_rate),
-        ("batch_size", training_cfg.training.batch_size),
-        ("mini_batch_size", max(1, training_cfg.training.batch_size // 2)),
-        ("target_kl", training_cfg.training.kl_target),
-        ("init_kl_coef", training_cfg.training.kl_target),
-        ("kl_penalty", "kl"),
-        ("model_name", training_cfg.training.model_name),
-        ("bf16", False),
-        ("fp16", True),
-    ]:
-        try:
-            setattr(ppo_config, key, value)
-        except Exception:
-            pass
-    return ppo_config
-
-
-def _configure_precision(ppo_config) -> None:
-    """Force fp16 when bf16 is unsupported to avoid TRL/transformers errors."""
-    try:
-        import torch
-    except Exception:  # pragma: no cover - defensive
-        return
-    bf16_ok = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
-    if not bf16_ok and hasattr(ppo_config, "bf16"):
-        ppo_config.bf16 = False
-    if not bf16_ok and hasattr(ppo_config, "fp16"):
-        ppo_config.fp16 = True
 
 
 def main() -> None:
@@ -261,36 +118,14 @@ def main() -> None:
     model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name)
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name)
 
-    # Add missing attributes that TRL expects
-    if not hasattr(model, 'is_gradient_checkpointing'):
-        model.is_gradient_checkpointing = False
-    if not hasattr(ref_model, 'is_gradient_checkpointing'):
-        ref_model.is_gradient_checkpointing = False
-
-    # Fix potential circular references in model structure
-    # Some versions of AutoModelForCausalLMWithValueHead have issues
-    if hasattr(model, 'pretrained_model') and hasattr(model.pretrained_model, 'v_head'):
-        delattr(model.pretrained_model, 'v_head')
-    if hasattr(ref_model, 'pretrained_model') and hasattr(ref_model.pretrained_model, 'v_head'):
-        delattr(ref_model.pretrained_model, 'v_head')
-
     print("✓ Model and reference model loaded", flush=True)
 
     # Create a simple reward model (unused for PPO but kept for compatibility)
     reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
     print("✓ Reward model loaded", flush=True)
 
-    # Value model: use the full model; TRL will access its backbone via base_model_prefix
+    # Value model: use the full model
     value_model = model
-
-    # Ensure TRL can find base model prefix
-    _ensure_base_prefix(model)
-    _ensure_base_prefix(ref_model)
-    _ensure_base_prefix(value_model)
-
-    # Ensure generation configs exist so PPOTrainer can set stop/pad tokens
-    _ensure_generation_config(model, tokenizer)
-    _ensure_generation_config(ref_model, tokenizer)
 
     # Convert dataset to HuggingFace Dataset format
     print("\nPreparing HuggingFace Dataset...", flush=True)
@@ -302,71 +137,29 @@ def main() -> None:
     print(f"✓ Dataset prepared: {len(hf_dataset)} examples", flush=True)
 
     print("\nInitializing PPO configuration...", flush=True)
-    ppo_init_kwargs = {"bf16": False}
-    # Prefer fp16 on GPUs to avoid bf16 requirement in some TRL versions
-    ppo_init_kwargs["fp16"] = True
-    try:
-        ppo_config = PPOConfig(**ppo_init_kwargs)
-    except TypeError:
-        # Older signatures may not accept bf16/fp16 kwargs
-        # Disable bf16 (not supported on V100/A100-less clusters); allow overriding via setattr below.
-        ppo_config = PPOConfig(bf16=False, fp16=True)
-    except ValueError:
-        # In case bf16 check still triggers, retry without overrides
-        ppo_config = PPOConfig()
-    # Populate common knobs; setattr guards against version differences.
-    for key, value in [
-        ("learning_rate", config.training.learning_rate),
-        ("batch_size", config.training.batch_size),
-        ("mini_batch_size", max(1, config.training.batch_size // 2)),
-        ("target_kl", config.training.kl_target),
-        ("init_kl_coef", config.training.kl_target),
-        ("kl_penalty", "kl"),
-        ("model_name", config.training.model_name),
-        ("bf16", False),
-        ("fp16", True),
-    ]:
-        try:
-            setattr(ppo_config, key, value)
-        except Exception:
-            pass
+    # Use config values directly, assuming bf16 is handled by config
+    ppo_config = PPOConfig(
+        learning_rate=config.training.learning_rate,
+        batch_size=config.training.batch_size,
+        mini_batch_size=max(1, config.training.batch_size // 2),
+        target_kl=config.training.kl_target,
+        init_kl_coef=config.training.kl_target,
+        kl_penalty="kl",
+        model_name=config.training.model_name,
+        bf16=getattr(config.training, "bf16", False),
+        fp16=not getattr(config.training, "bf16", False),
+    )
 
     print("\nInitializing PPO trainer...", flush=True)
-    trainer_kwargs = {}
-    trainer_sig = inspect.signature(PPOTrainer.__init__)
-    param_names = set(trainer_sig.parameters.keys())
-
-    # Core required args
-    if "config" in param_names:
-        trainer_kwargs["config"] = ppo_config
-    elif "args" in param_names:
-        trainer_kwargs["args"] = ppo_config
-
-    trainer_kwargs["model"] = model
-    if "ref_model" in param_names:
-        trainer_kwargs["ref_model"] = ref_model
-    if "tokenizer" in param_names:
-        trainer_kwargs["tokenizer"] = tokenizer
-    if "processing_class" in param_names:
-        trainer_kwargs["processing_class"] = tokenizer
-    if "dataset" in param_names:
-        trainer_kwargs["dataset"] = hf_dataset
-    elif "train_dataset" in param_names:
-        trainer_kwargs["train_dataset"] = hf_dataset
-    if "reward_model" in param_names:
-        trainer_kwargs["reward_model"] = reward_model
-    # value_model should be the v_head, not the whole model
-    if "value_model" in param_names and value_model is not None:
-        trainer_kwargs["value_model"] = value_model
-
-    try:
-        trainer = PPOTrainer(**trainer_kwargs)
-    except TypeError as err:
-        # Fallbacks for older TRL: drop optional entries until it works
-        for key in ["tokenizer", "processing_class", "value_model"]:
-            if key in trainer_kwargs:
-                trainer_kwargs.pop(key)
-        trainer = PPOTrainer(**trainer_kwargs)
+    trainer = PPOTrainer(
+        config=ppo_config,
+        model=model,
+        ref_model=ref_model,
+        tokenizer=tokenizer,
+        dataset=hf_dataset,
+        reward_model=reward_model,
+        value_model=value_model,
+    )
     print("✓ PPO trainer initialized", flush=True)
 
     runner = MathLMPPORunner(

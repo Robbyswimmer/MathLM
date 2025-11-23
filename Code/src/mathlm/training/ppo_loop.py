@@ -115,23 +115,12 @@ class MathLMPPORunner:
     def _unwrap_generation_model(self) -> Tuple[object, object]:
         """Return (gen_model, device) suitable for .generate()."""
         trainer = self.trainer
-        assert trainer is not None  # for type checkers
-        # Prefer trainer.policy_model if exposed by TRL
-        candidates = [getattr(trainer, "policy_model", None), getattr(trainer, "model", None)]
-        for cand in candidates:
-            if cand is None:
-                continue
-            # Walk common attribute names to reach the underlying HF causal LM
-            for attr in ("policy_model", "pretrained_model", "base_model", "model", "transformer"):
-                if hasattr(cand, attr):
-                    cand = getattr(cand, attr)
-            if hasattr(cand, "generate"):
-                device = next(cand.parameters()).device  # type: ignore[arg-type]
-                return cand, device  # type: ignore[return-value]
-        # Fallback: last resort to trainer.model itself
-        model = getattr(trainer, "model")
-        device = next(model.parameters()).device  # type: ignore[arg-type]
-        return model, device  # type: ignore[return-value]
+        assert trainer is not None
+        # In modern TRL, trainer.model is the value-head model, which wraps the transformer
+        # We can generate directly from it or its pretrained_model
+        model = trainer.model
+        device = next(model.parameters()).device
+        return model, device
 
     def _trl_batch(self, batch: List[PromptExample]) -> Tuple[List[Rollout], Optional[Dict[str, Any]]]:
         """Use TRL PPOTrainer to generate responses and perform PPO update."""
