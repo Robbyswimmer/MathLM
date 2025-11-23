@@ -399,17 +399,25 @@ def main() -> None:
         ref_model.base_model_prefix = "pretrained_model"
     log_cuda_memory("After base_model_prefix setup")
 
-    # Restore is_gradient_checkpointing attribute (removed during cleanup but needed)
-    if not hasattr(model, 'is_gradient_checkpointing'):
-        model.is_gradient_checkpointing = True
-
-    # Enable gradient checkpointing to save memory
-    if hasattr(model, "gradient_checkpointing_enable"):
-        model.gradient_checkpointing_enable()
-        model.config.use_cache = False # Required for gradient checkpointing
-
     # Get world_size early for configuration
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
+
+    # Restore is_gradient_checkpointing attribute (removed during cleanup but needed)
+    if not hasattr(model, 'is_gradient_checkpointing'):
+        model.is_gradient_checkpointing = False
+
+    # Disable gradient checkpointing in multi-GPU (conflicts with DDP)
+    # In single GPU, we can enable it to save memory
+    if world_size == 1 and hasattr(model, "gradient_checkpointing_enable"):
+        model.gradient_checkpointing_enable()
+        model.config.use_cache = False # Required for gradient checkpointing
+        model.is_gradient_checkpointing = True
+        print("✓ Gradient checkpointing enabled (single GPU)", flush=True)
+    else:
+        if hasattr(model, "gradient_checkpointing_disable"):
+            model.gradient_checkpointing_disable()
+        model.config.use_cache = True
+        print("✓ Gradient checkpointing disabled (multi-GPU for DDP compatibility)", flush=True)
 
     # Limit generation length to avoid OOM (tunable via env MAX_NEW_TOKENS)
     gen_max = int(os.environ.get("MAX_NEW_TOKENS", 64 if world_size > 1 else 128))
