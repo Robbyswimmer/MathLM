@@ -383,12 +383,15 @@ def main() -> None:
     # Restore is_gradient_checkpointing attribute (removed during cleanup but needed)
     if not hasattr(model, 'is_gradient_checkpointing'):
         model.is_gradient_checkpointing = True
-        
+
     # Enable gradient checkpointing to save memory
     if hasattr(model, "gradient_checkpointing_enable"):
         model.gradient_checkpointing_enable()
         model.config.use_cache = False # Required for gradient checkpointing
-        
+
+    # Get world_size early for configuration
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+
     # Limit generation length to avoid OOM (tunable via env MAX_NEW_TOKENS)
     gen_max = int(os.environ.get("MAX_NEW_TOKENS", 64 if world_size > 1 else 128))
     if hasattr(model, "generation_config"):
@@ -429,7 +432,6 @@ def main() -> None:
     log_cuda_memory("After dataset prep")
 
     print("\nInitializing PPO configuration...", flush=True)
-    world_size = int(os.environ.get("WORLD_SIZE", "1"))
     target_batch = max(1, config.training.batch_size // world_size)
     per_device_cap = int(os.environ.get("PPO_BATCH_PER_DEVICE", 2 if world_size > 1 else 1))
     effective_batch = max(1, min(target_batch, per_device_cap))
