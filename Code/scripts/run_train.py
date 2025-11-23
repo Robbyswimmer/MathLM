@@ -34,39 +34,24 @@ import math
 from contextlib import contextmanager
 import trl.models.utils as trl_utils
 
-# Monkeypatch unwrap_model_for_generation to skip gradient checkpointing toggles if missing
-_orig_unwrap_for_gen = getattr(trl_utils, "unwrap_model_for_generation", None)
-_orig_unwrap = getattr(trl_utils, "unwrap_model", None)
-if _orig_unwrap_for_gen is not None and _orig_unwrap is not None:
-    def safe_unwrap_model_for_generation(model):
-        @contextmanager
-        def _ctx():
-            unwrapped = _orig_unwrap(model)
+# Monkeypatch PolicyAndValueWrapper to add missing gradient_checkpointing methods
+# This must be done before PPOTrainer is instantiated
+try:
+    from trl.models.modeling_value_head import PolicyAndValueWrapper
 
-            # Ensure unwrapped model has gradient_checkpointing methods (even if no-op)
-            if not hasattr(unwrapped, "gradient_checkpointing_disable"):
-                unwrapped.gradient_checkpointing_disable = lambda: None
-            if not hasattr(unwrapped, "gradient_checkpointing_enable"):
-                unwrapped.gradient_checkpointing_enable = lambda: None
+    def _noop(self):
+        """No-op for gradient checkpointing toggle."""
+        pass
 
-            # Safely disable gradient checkpointing if method exists
-            if hasattr(unwrapped, "gradient_checkpointing_disable"):
-                try:
-                    unwrapped.gradient_checkpointing_disable()
-                except Exception:
-                    pass
+    if not hasattr(PolicyAndValueWrapper, "gradient_checkpointing_disable"):
+        PolicyAndValueWrapper.gradient_checkpointing_disable = _noop
+        print("✓ Added gradient_checkpointing_disable to PolicyAndValueWrapper", flush=True)
 
-            yield unwrapped
-
-            # Safely re-enable gradient checkpointing if method exists
-            if hasattr(unwrapped, "gradient_checkpointing_enable"):
-                try:
-                    unwrapped.gradient_checkpointing_enable()
-                except Exception:
-                    pass
-        return _ctx()
-    trl_utils.unwrap_model_for_generation = safe_unwrap_model_for_generation  # type: ignore
-    print("✓ Patched trl_utils.unwrap_model_for_generation to handle missing gradient_checkpointing methods", flush=True)
+    if not hasattr(PolicyAndValueWrapper, "gradient_checkpointing_enable"):
+        PolicyAndValueWrapper.gradient_checkpointing_enable = _noop
+        print("✓ Added gradient_checkpointing_enable to PolicyAndValueWrapper", flush=True)
+except ImportError:
+    print("! Could not import PolicyAndValueWrapper, skipping class-level patch", flush=True)
 
 # --- Monkeypatch for TRL v0.25.1 Compatibility ---
 # TRL's AutoModelForCausalLMWithValueHead might return a tuple even with return_dict=True
