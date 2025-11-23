@@ -457,6 +457,26 @@ def main() -> None:
         trainer.model.gradient_checkpointing_enable = types.MethodType(_enable_gc, trainer.model)
     # ---------------------------------------------------------------------------------------
 
+    # Patch ref_model forward after PPOTrainer wraps models (handles tuple outputs)
+    def _wrap_forward(module):
+        original = module.forward
+        def _fwd(self, *args, **kwargs):
+            kwargs["return_dict"] = True
+            out = original(*args, **kwargs)
+            if hasattr(out, "logits"):
+                return out
+            if isinstance(out, tuple) and out:
+                return CausalLMOutputWithValue(logits=out[0], original_tuple=out)
+            return out
+        module.forward = types.MethodType(_fwd, module)
+
+    if hasattr(trainer, "ref_model"):
+        try:
+            _wrap_forward(trainer.ref_model)
+            print("✓ Patched trainer.ref_model.forward to normalize outputs", flush=True)
+        except Exception as err:
+            print(f"! Failed to patch trainer.ref_model.forward: {err}", flush=True)
+
     print("\n" + "="*60, flush=True)
     print("STARTING PPO TRAINING", flush=True)
     print("="*60, flush=True)
