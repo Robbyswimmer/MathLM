@@ -157,7 +157,7 @@ def main() -> None:
 
     print("\nInitializing PPO trainer...", flush=True)
     trainer = PPOTrainer(
-        config=ppo_config,
+        args=ppo_config,
         model=model,
         ref_model=ref_model,
         processing_class=tokenizer,
