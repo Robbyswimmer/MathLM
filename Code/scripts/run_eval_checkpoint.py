@@ -42,6 +42,12 @@ def main():
     if bin_file.exists() and not safetensors_file.exists():
         print("\n⚠ Converting PyTorch checkpoint to safetensors format...")
         state_dict = torch.load(bin_file, map_location="cpu", weights_only=False)
+
+        # Handle weight tying by cloning shared tensors
+        if "lm_head.weight" in state_dict and "model.embed_tokens.weight" in state_dict:
+            if state_dict["lm_head.weight"].data_ptr() == state_dict["model.embed_tokens.weight"].data_ptr():
+                state_dict["lm_head.weight"] = state_dict["lm_head.weight"].clone()
+
         save_file(state_dict, str(safetensors_file))
         bin_file.unlink()
         print("✓ Converted to safetensors")
