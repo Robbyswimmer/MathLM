@@ -74,6 +74,14 @@ def _ensure_generation_config(model, tokenizer) -> None:
     model.generation_config = gen_cfg
 
 
+def _ensure_base_prefix(module) -> None:
+    """Some TRL versions expect base_model_prefix to exist."""
+    if module is None:  # pragma: no cover - defensive
+        return
+    if not hasattr(module, "base_model_prefix"):
+        setattr(module, "base_model_prefix", "model")
+
+
 def main() -> None:
     args = parse_args()
 
@@ -146,6 +154,11 @@ def main() -> None:
     # Value model handle (used by some PPOTrainer signatures)
     value_model = model
 
+    # Ensure TRL can find base model prefix
+    _ensure_base_prefix(model)
+    _ensure_base_prefix(ref_model)
+    _ensure_base_prefix(value_model)
+
     # Ensure generation configs exist so PPOTrainer can set stop/pad tokens
     _ensure_generation_config(model, tokenizer)
     _ensure_generation_config(ref_model, tokenizer)
@@ -206,13 +219,10 @@ def main() -> None:
     try:
         trainer = PPOTrainer(**trainer_kwargs)
     except TypeError as err:
-        # Fallback: drop tokenizer if not supported
-        if "tokenizer" in trainer_kwargs:
-            trainer_kwargs.pop("tokenizer")
-        if "processing_class" in trainer_kwargs:
-            trainer_kwargs.pop("processing_class")
-        if "value_model" in trainer_kwargs:
-            trainer_kwargs.pop("value_model")
+        # Fallbacks for older TRL: drop optional entries until it works
+        for key in ["tokenizer", "processing_class", "value_model"]:
+            if key in trainer_kwargs:
+                trainer_kwargs.pop(key)
         trainer = PPOTrainer(**trainer_kwargs)
     print("✓ PPO trainer initialized", flush=True)
 
