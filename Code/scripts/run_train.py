@@ -197,7 +197,8 @@ def main() -> None:
         reward_model=reward_model,
         value_model=value_model,
     )
-    print("✓ PPO trainer initialized", flush=True)
+    print(f"✓ PPO trainer initialized", flush=True)
+    print(f"DEBUG: PPOTrainer attributes: {dir(trainer)}", flush=True)
 
     runner = MathLMPPORunner(
         dataset,
