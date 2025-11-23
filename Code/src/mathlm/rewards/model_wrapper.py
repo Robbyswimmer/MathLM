@@ -13,7 +13,10 @@ class MathRewardModel(nn.Module):
         self.reward_calc = reward_calc
         self.tokenizer = tokenizer
         # TRL v0.25.1 compatibility
-        self.base_model_prefix = "reward_calc"
+        # TRL expects base_model_prefix to point to a callable "backbone" module.
+        # We point it to 'self' so that self.forward() is called.
+        self.model = self 
+        self.base_model_prefix = "model"
         self.config = nn.Module() # Dummy config
         self.config.is_encoder_decoder = False
     
@@ -28,36 +31,29 @@ class MathRewardModel(nn.Module):
         
         rewards = []
         for text in texts:
-            # We need to extract the question and response.
-            # Assuming the prompt ends with "Answer:" or similar, and the rest is the response.
-            # However, RewardCalculator.evaluate(question, response_text) needs the original question.
-            # Parsing the question back from the prompt is brittle.
-            
-            # BETTER APPROACH:
-            # Since we are using this in a specific training loop, maybe we can assume
-            # the dataset provided the prompt?
-            # But PPOTrainer calls this with generated text.
-            
-            # For now, let's try to split by a known separator if possible.
-            # If we look at `mathlm.prompts`, the default template usually ends with "Answer:".
-            
             parts = text.split("Answer:")
             if len(parts) >= 2:
-                # Everything before the last "Answer:" is the prompt (roughly)
-                # Everything after is the response.
-                # This is a heuristic.
                 question_part = "Answer:".join(parts[:-1]).strip()
                 response_part = parts[-1].strip()
             else:
-                # Fallback
                 question_part = text
                 response_part = ""
-                
-            # RewardCalculator expects the GSM8KExample object or just the question text?
-            # Let's check RewardCalculator.evaluate signature.
-            # It takes (question: GSM8KExample | str, response_text: str)
             
             breakdown = self.reward_calc.evaluate(question_part, response_part)
             rewards.append(breakdown.total)
             
-        return torch.tensor(rewards, dtype=torch.float32, device=input_ids.device)
+        rewards_tensor = torch.tensor(rewards, dtype=torch.float32, device=input_ids.device)
+        
+        # TRL expects output.hidden_states[-1] to be passed to score()
+        # We wrap our rewards in a dummy object.
+        # We return the rewards tensor as the "hidden state".
+        class DummyOutput:
+            def __init__(self, hidden_states):
+                self.hidden_states = hidden_states
+                
+        return DummyOutput(hidden_states=[rewards_tensor])
+
+    def score(self, hidden_states):
+        # TRL calls this with output.hidden_states[-1]
+        # In our case, that is the rewards_tensor we returned in forward()
+        return hidden_states
