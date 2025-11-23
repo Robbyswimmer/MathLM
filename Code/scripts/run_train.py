@@ -22,6 +22,41 @@ from mathlm.utils.yaml_loader import load_config as load_yaml_config
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
 from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
 from datasets import Dataset
+import torch
+from dataclasses import dataclass
+from typing import Optional, Tuple, Any
+
+# --- Monkeypatch for TRL v0.25.1 Compatibility ---
+# TRL's AutoModelForCausalLMWithValueHead might return a tuple even with return_dict=True
+# in some configurations. We patch it to ensure it returns an object with .logits and .value.
+
+@dataclass
+class CausalLMOutputWithValue:
+    logits: torch.Tensor
+    value: Optional[torch.Tensor] = None
+    past_key_values: Optional[Tuple] = None
+
+_original_forward = AutoModelForCausalLMWithValueHead.forward
+
+def _patched_forward(self, *args, **kwargs):
+    # Force return_dict=True
+    kwargs["return_dict"] = True
+    output = _original_forward(self, *args, **kwargs)
+    
+    if isinstance(output, tuple):
+        # Heuristic: usually (logits, past_key_values, value) or (logits, value)
+        # We assume logits is first and value is last.
+        logits = output[0]
+        value = output[-1]
+        past_key_values = output[1] if len(output) > 2 else None
+        
+        # print(f"DEBUG: Patched tuple output len={len(output)}", flush=True)
+        return CausalLMOutputWithValue(logits=logits, value=value, past_key_values=past_key_values)
+    
+    return output
+
+AutoModelForCausalLMWithValueHead.forward = _patched_forward
+# -------------------------------------------------
 
 
 def load_experiment(config_path: Path) -> ExperimentConfig:
