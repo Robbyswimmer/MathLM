@@ -35,6 +35,8 @@ class CausalLMOutputWithValue:
     logits: torch.Tensor
     value: Optional[torch.Tensor] = None
     past_key_values: Optional[Tuple] = None
+    hidden_states: Optional[Tuple[torch.Tensor]] = None
+    attentions: Optional[Tuple[torch.Tensor]] = None
 
 _original_forward = AutoModelForCausalLMWithValueHead.forward
 
@@ -45,17 +47,61 @@ def _patched_forward(self, *args, **kwargs):
     
     if isinstance(output, tuple):
         # Heuristic: usually (logits, past_key_values, value) or (logits, value)
-        # We assume logits is first and value is last.
+        # But if output_hidden_states=True, it might be different.
+        # Standard HF tuple: (logits, past_key_values, hidden_states, attentions)
+        # TRL wrapper adds value.
+        # Let's try to be robust.
         logits = output[0]
-        value = output[-1]
-        past_key_values = output[1] if len(output) > 2 else None
+        value = None
+        past_key_values = None
+        hidden_states = None
+        attentions = None
         
-        # print(f"DEBUG: Patched tuple output len={len(output)}", flush=True)
-        return CausalLMOutputWithValue(logits=logits, value=value, past_key_values=past_key_values)
+        # TRL's forward usually returns (logits, past_key_values, value) if no hidden states
+        # If hidden states are present, they are usually after past_key_values.
+        # This is tricky without knowing exact TRL version behavior.
+        # However, we know TRL v0.25.1 expects an object.
+        
+        # Let's try to map based on type/shape if possible, or just standard positions.
+        # If len is 3: (logits, past_key_values, value)
+        # If len is 4: (logits, past_key_values, hidden_states, value) ??
+        
+        # Actually, let's just look at the last element for value, as TRL usually appends it.
+        value = output[-1]
+        
+        if len(output) >= 2:
+            # Check if second element is past_key_values (tuple)
+            if isinstance(output[1], tuple):
+                past_key_values = output[1]
+        
+        # Check for hidden_states (tuple of tensors)
+        for item in output:
+            if isinstance(item, tuple) and len(item) > 0 and isinstance(item[0], torch.Tensor):
+                # This looks like hidden_states (or attentions)
+                # Hidden states usually have same shape as input (B, S, H)
+                # Attentions (B, H, S, S)
+                if item[0].dim() == 3:
+                    hidden_states = item
+                elif item[0].dim() == 4:
+                    attentions = item
+                    
+        return CausalLMOutputWithValue(
+            logits=logits, 
+            value=value, 
+            past_key_values=past_key_values,
+            hidden_states=hidden_states,
+            attentions=attentions
+        )
     
     return output
 
 AutoModelForCausalLMWithValueHead.forward = _patched_forward
+
+# Add missing 'score' method which TRL v0.25.1 expects on the value model
+if not hasattr(AutoModelForCausalLMWithValueHead, "score"):
+    def _score(self, hidden_states):
+        return self.v_head(hidden_states)
+    AutoModelForCausalLMWithValueHead.score = _score
 # -------------------------------------------------
 
 
