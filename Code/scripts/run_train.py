@@ -143,8 +143,8 @@ def main() -> None:
     reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
     print("✓ Reward model loaded", flush=True)
 
-    # Value head (used by some PPOTrainer signatures)
-    value_model = getattr(model, "v_head", None)
+    # Value model handle (used by some PPOTrainer signatures)
+    value_model = model
 
     # Ensure generation configs exist so PPOTrainer can set stop/pad tokens
     _ensure_generation_config(model, tokenizer)
