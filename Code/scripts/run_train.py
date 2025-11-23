@@ -80,10 +80,21 @@ def _ensure_base_prefix(module) -> None:
         return
     if not hasattr(module, "base_model_prefix"):
         setattr(module, "base_model_prefix", "model")
-    # Ensure an attribute matching base_model_prefix exists
+    # Ensure an attribute matching base_model_prefix exists; avoid self-recursion
     prefix = getattr(module, "base_model_prefix", "model")
     if not hasattr(module, prefix):
-        setattr(module, prefix, module)
+        try:
+            import torch.nn as nn  # type: ignore
+            class _DummyBase(nn.Module):  # pragma: no cover - tiny helper
+                def __init__(self):
+                    super().__init__()
+            dummy = _DummyBase()
+        except Exception:  # pragma: no cover
+            class _Stub(nn.Module):  # type: ignore
+                def __init__(self):
+                    super().__init__()
+            dummy = _Stub()
+        setattr(module, prefix, dummy)
 
 
 def _init_ppo_config(train_cfg) -> PPOConfig:
