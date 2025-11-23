@@ -186,6 +186,9 @@ def main() -> None:
     ppo_config.init_kl_coef = config.training.kl_target
     ppo_config.kl_penalty = "kl"
     ppo_config.model_name = config.training.model_name
+    
+    # Disable wandb as requested
+    ppo_config.report_to = "none"
 
     # Create reward model wrapper
     from mathlm.rewards.model_wrapper import MathRewardModel
