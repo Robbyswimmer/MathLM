@@ -17,6 +17,8 @@ from mathlm.data import (
 )
 from mathlm.rewards import RewardCalculator, RewardWeights
 from mathlm.training import JSONLLogger, MathLMPPORunner, PromptDataset
+import os
+
 from mathlm.utils import ExperimentConfig, parse_config
 from mathlm.utils.yaml_loader import load_config as load_yaml_config
 
@@ -387,12 +389,13 @@ def main() -> None:
         model.gradient_checkpointing_enable()
         model.config.use_cache = False # Required for gradient checkpointing
         
-    # Limit generation length to avoid OOM (reduced to 128 from 512)
+    # Limit generation length to avoid OOM (tunable via env MAX_NEW_TOKENS)
+    gen_max = int(os.environ.get("MAX_NEW_TOKENS", 64 if world_size > 1 else 128))
     if hasattr(model, "generation_config"):
-        model.generation_config.max_new_tokens = 128
+        model.generation_config.max_new_tokens = gen_max
         model.generation_config.min_new_tokens = 1
     if hasattr(ref_model, "generation_config"):
-        ref_model.generation_config.max_new_tokens = 128
+        ref_model.generation_config.max_new_tokens = gen_max
         ref_model.generation_config.min_new_tokens = 1
         ref_model.is_gradient_checkpointing = False
 
@@ -407,11 +410,11 @@ def main() -> None:
     print("\nPreparing HuggingFace Dataset...", flush=True)
     # TRL expects 'input_ids' for the data collator to work correctly
     # We also need attention_mask for proper padding
-    # Reduce max_length to 256 to save memory (prompts are typically short)
+    prompt_max_len = int(os.environ.get("PROMPT_MAX_LEN", 192 if int(os.environ.get("WORLD_SIZE", "1")) > 1 else 128))
     input_ids = []
     attention_masks = []
     for ex in dataset.examples:
-        tokenized = tokenizer(ex.prompt, truncation=True, max_length=128)
+        tokenized = tokenizer(ex.prompt, truncation=True, max_length=prompt_max_len)
         input_ids.append(tokenized["input_ids"])
         attention_masks.append(tokenized["attention_mask"])
 
@@ -426,13 +429,17 @@ def main() -> None:
     log_cuda_memory("After dataset prep")
 
     print("\nInitializing PPO configuration...", flush=True)
-    # Use config values directly, assuming bf16 is handled by config
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    target_batch = max(1, config.training.batch_size // world_size)
+    per_device_cap = int(os.environ.get("PPO_BATCH_PER_DEVICE", 2 if world_size > 1 else 1))
+    effective_batch = max(1, min(target_batch, per_device_cap))
+
     # Initialize with safe arguments first
     ppo_config = PPOConfig(
         learning_rate=config.training.learning_rate,
-        batch_size=1,  # force tiny batch to fit GPU
-        mini_batch_size=1,
-        gradient_accumulation_steps=1,
+        batch_size=effective_batch,
+        mini_batch_size=max(1, effective_batch // world_size),
+        gradient_accumulation_steps=getattr(config.training, "gradient_accumulation_steps", 1),
         fp16=False,
         bf16=False,
     )
@@ -469,39 +476,47 @@ def main() -> None:
     print(f"✓ PPO trainer initialized", flush=True)
     log_cuda_memory("After PPOTrainer init")
 
-    # Ensure wrapper and inner models expose gradient checkpointing toggles (TRL expects them)
+    # Patch gradient_checkpointing methods on trainer.model (PolicyAndValueWrapper in multi-GPU)
     import types
-    for cls in (AutoModelForCausalLMWithValueHead,):
-        if not hasattr(cls, "gradient_checkpointing_disable"):
-            cls.gradient_checkpointing_disable = lambda self: None  # type: ignore
-        if not hasattr(cls, "gradient_checkpointing_enable"):
-            cls.gradient_checkpointing_enable = lambda self: None  # type: ignore
 
-    def _ensure_gc_hooks(obj):
+    def _noop_gc_disable(self):
+        """No-op gradient checkpointing disable."""
+        pass
+
+    def _noop_gc_enable(self):
+        """No-op gradient checkpointing enable."""
+        pass
+
+    # Patch the trainer.model instance directly (this is PolicyAndValueWrapper in Accelerate mode)
+    if not hasattr(trainer.model, "gradient_checkpointing_disable"):
+        trainer.model.gradient_checkpointing_disable = types.MethodType(_noop_gc_disable, trainer.model)
+        print("✓ Patched trainer.model.gradient_checkpointing_disable", flush=True)
+
+    if not hasattr(trainer.model, "gradient_checkpointing_enable"):
+        trainer.model.gradient_checkpointing_enable = types.MethodType(_noop_gc_enable, trainer.model)
+        print("✓ Patched trainer.model.gradient_checkpointing_enable", flush=True)
+
+    # Also patch any nested models we can find
+    def _ensure_gc_hooks(obj, name=""):
         if obj is None:
             return
-        cls = obj.__class__
-        try:
-            if not hasattr(cls, "gradient_checkpointing_disable"):
-                setattr(cls, "gradient_checkpointing_disable", lambda self: None)
-            if not hasattr(cls, "gradient_checkpointing_enable"):
-                setattr(cls, "gradient_checkpointing_enable", lambda self: None)
-        except Exception:
-            # Fallback to instance-level attachment if class is frozen
-            if not hasattr(obj, "gradient_checkpointing_disable"):
-                try:
-                    obj.gradient_checkpointing_disable = types.MethodType(lambda self: None, obj)
-                except Exception:
-                    pass
-            if not hasattr(obj, "gradient_checkpointing_enable"):
-                try:
-                    obj.gradient_checkpointing_enable = types.MethodType(lambda self: None, obj)
-                except Exception:
-                    pass
+        if not hasattr(obj, "gradient_checkpointing_disable"):
+            try:
+                obj.gradient_checkpointing_disable = types.MethodType(_noop_gc_disable, obj)
+                if name:
+                    print(f"✓ Patched {name}.gradient_checkpointing_disable", flush=True)
+            except Exception:
+                pass
+        if not hasattr(obj, "gradient_checkpointing_enable"):
+            try:
+                obj.gradient_checkpointing_enable = types.MethodType(_noop_gc_enable, obj)
+                if name:
+                    print(f"✓ Patched {name}.gradient_checkpointing_enable", flush=True)
+            except Exception:
+                pass
 
-    _ensure_gc_hooks(getattr(trainer, "model", None))
-    _ensure_gc_hooks(getattr(trainer.model, "policy_model", None))
-    _ensure_gc_hooks(getattr(trainer.model, "pretrained_model", None))
+    _ensure_gc_hooks(getattr(trainer.model, "policy", None), "trainer.model.policy")
+    _ensure_gc_hooks(getattr(trainer.model, "pretrained_model", None), "trainer.model.pretrained_model")
 
     # Patch trainer models to always yield logits (handles tuple outputs)
     def _patch_module_outputs(module, label: str) -> None:
