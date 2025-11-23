@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 from pathlib import Path
 
@@ -173,24 +174,35 @@ def main() -> None:
             pass
 
     print("\nInitializing PPO trainer...", flush=True)
+    trainer_kwargs = {}
+    trainer_sig = inspect.signature(PPOTrainer.__init__)
+    param_names = set(trainer_sig.parameters.keys())
+
+    # Core required args
+    if "config" in param_names:
+        trainer_kwargs["config"] = ppo_config
+    elif "args" in param_names:
+        trainer_kwargs["args"] = ppo_config
+
+    trainer_kwargs["model"] = model
+    if "ref_model" in param_names:
+        trainer_kwargs["ref_model"] = ref_model
+    if "tokenizer" in param_names:
+        trainer_kwargs["tokenizer"] = tokenizer
+    if "dataset" in param_names:
+        trainer_kwargs["dataset"] = hf_dataset
+    elif "train_dataset" in param_names:
+        trainer_kwargs["train_dataset"] = hf_dataset
+    if "reward_model" in param_names:
+        trainer_kwargs["reward_model"] = reward_model
+
     try:
-        trainer = PPOTrainer(
-            config=ppo_config,
-            model=model,
-            ref_model=ref_model,
-            tokenizer=tokenizer,
-            dataset=hf_dataset,
-        )
-    except TypeError:
-        # Older TRL releases expect `args`/`train_dataset`
-        trainer = PPOTrainer(
-            args=ppo_config,
-            model=model,
-            ref_model=ref_model,
-            tokenizer=tokenizer,
-            train_dataset=hf_dataset,
-            reward_model=reward_model,
-        )
+        trainer = PPOTrainer(**trainer_kwargs)
+    except TypeError as err:
+        # Fallback: drop tokenizer if not supported
+        if "tokenizer" in trainer_kwargs:
+            trainer_kwargs.pop("tokenizer")
+        trainer = PPOTrainer(**trainer_kwargs)
     print("✓ PPO trainer initialized", flush=True)
 
     runner = MathLMPPORunner(
