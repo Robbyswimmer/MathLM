@@ -118,8 +118,15 @@ class MathLMPPORunner:
             raise RuntimeError("PyTorch is required for training.")
         assert self.trainer is not None and self.tokenizer is not None
 
-        # Get model from trainer
+        # Get model from trainer - unwrap to get the pretrained model
         model = self.trainer.model
+        # TRL wraps the model, so we need to access the underlying pretrained_model
+        if hasattr(model, 'pretrained_model'):
+            gen_model = model.pretrained_model
+        elif hasattr(model, 'base_model'):
+            gen_model = model.base_model
+        else:
+            gen_model = model
         device = next(model.parameters()).device
 
         # Prepare prompts
@@ -127,9 +134,9 @@ class MathLMPPORunner:
         encodings = self.tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, max_length=512)
         query_tensors = encodings["input_ids"].to(device)
 
-        # Generate responses using the model directly
+        # Generate responses using the underlying pretrained model
         with torch.no_grad():
-            response_tensors = model.generate(
+            response_tensors = gen_model.generate(
                 query_tensors,
                 max_new_tokens=self.max_new_tokens,
                 do_sample=True,
