@@ -205,10 +205,21 @@ def main() -> None:
         tokenizer.pad_token = tokenizer.eos_token
 
     # Load model with value head for PPO
-    model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name, return_dict=True)
-    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name, return_dict=True)
+    model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        config.training.model_name,
+        return_dict=True,
+        torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
+    )
 
-    print("✓ Model and reference model loaded", flush=True)
+    # Load reference model on CPU to save GPU memory, will be moved to GPU batch-by-batch
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        config.training.model_name,
+        return_dict=True,
+        torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
+        device_map="cpu",
+    )
+
+    print("✓ Model loaded on GPU, reference model on CPU", flush=True)
 
     # Ensure generation_config is accessible on the wrapper for TRL v0.25.1+
     # The wrapper (AutoModelForCausalLMWithValueHead) might not expose it directly
@@ -253,12 +264,12 @@ def main() -> None:
         model.gradient_checkpointing_enable()
         model.config.use_cache = False # Required for gradient checkpointing
         
-    # Limit generation length to avoid OOM
+    # Limit generation length to avoid OOM (reduced to 128 from 512)
     if hasattr(model, "generation_config"):
-        model.generation_config.max_new_tokens = 512
+        model.generation_config.max_new_tokens = 128
         model.generation_config.min_new_tokens = 1
     if hasattr(ref_model, "generation_config"):
-        ref_model.generation_config.max_new_tokens = 512
+        ref_model.generation_config.max_new_tokens = 128
         ref_model.generation_config.min_new_tokens = 1
         ref_model.is_gradient_checkpointing = False
 
@@ -273,10 +284,11 @@ def main() -> None:
     print("\nPreparing HuggingFace Dataset...", flush=True)
     # TRL expects 'input_ids' for the data collator to work correctly
     # We also need attention_mask for proper padding
+    # Reduce max_length to 256 to save memory (prompts are typically short)
     input_ids = []
     attention_masks = []
     for ex in dataset.examples:
-        tokenized = tokenizer(ex.prompt, truncation=True, max_length=512)
+        tokenized = tokenizer(ex.prompt, truncation=True, max_length=256)
         input_ids.append(tokenized["input_ids"])
         attention_masks.append(tokenized["attention_mask"])
 
@@ -296,19 +308,20 @@ def main() -> None:
         learning_rate=config.training.learning_rate,
         batch_size=config.training.batch_size,
         mini_batch_size=1,
+        gradient_accumulation_steps=getattr(config.training, "gradient_accumulation_steps", 1),
     )
-    
+
     ppo_config.target_kl = config.training.kl_target
     ppo_config.init_kl_coef = config.training.kl_target
-    
+
     # Set other attributes explicitly to support varying TRL versions
     if hasattr(config.training, "bf16"):
         ppo_config.bf16 = config.training.bf16
         ppo_config.fp16 = not config.training.bf16
-    
+
     ppo_config.kl_penalty = "kl"
     ppo_config.model_name = config.training.model_name
-    
+
     # Disable wandb as requested
     ppo_config.report_to = "none"
 

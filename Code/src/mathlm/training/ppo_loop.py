@@ -138,9 +138,9 @@ class MathLMPPORunner:
 
         gen_model, device = self._unwrap_generation_model()
 
-        # Prepare prompts
+        # Prepare prompts (reduced max_length to 256 to save memory)
         prompts = [example.prompt for example in batch]
-        encodings = self.tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, max_length=512)
+        encodings = self.tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, max_length=256)
         query_tensors = encodings["input_ids"].to(device)
 
         # Generate responses using the underlying pretrained model
