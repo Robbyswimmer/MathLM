@@ -187,6 +187,11 @@ def main() -> None:
     ppo_config.kl_penalty = "kl"
     ppo_config.model_name = config.training.model_name
 
+    # Create reward model wrapper
+    from mathlm.rewards.model_wrapper import MathRewardModel
+    reward_model_wrapper = MathRewardModel(reward_calc, tokenizer)
+    print("✓ Reward model wrapper initialized", flush=True)
+
     print("\nInitializing PPO trainer...", flush=True)
     trainer = PPOTrainer(
         args=ppo_config,
@@ -194,26 +199,17 @@ def main() -> None:
         ref_model=ref_model,
         processing_class=tokenizer,
         train_dataset=hf_dataset,
-        reward_model=reward_model,
+        reward_model=reward_model_wrapper,
         value_model=value_model,
     )
     print(f"✓ PPO trainer initialized", flush=True)
-    print(f"DEBUG: PPOTrainer attributes: {dir(trainer)}", flush=True)
-
-    runner = MathLMPPORunner(
-        dataset,
-        reward_calc,
-        logger,
-        trainer=trainer,
-        tokenizer=tokenizer,
-        **runner_kwargs,
-    )
 
     print("\n" + "="*60, flush=True)
     print("STARTING PPO TRAINING", flush=True)
     print("="*60, flush=True)
 
-    runner.run(total_steps=config.training.total_steps)
+    # Use trainer.train() instead of custom runner
+    trainer.train()
 
     print("\n" + "="*60, flush=True)
     print("TRAINING COMPLETE", flush=True)
