@@ -291,12 +291,11 @@ def main() -> None:
         torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
     )
 
-    # Load reference model on CPU to save GPU memory, will be moved to GPU batch-by-batch
+    # Load reference model on same device as policy to avoid device mismatches
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.training.model_name,
         return_dict=True,
         torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
-        device_map="cpu",
     )
 
     # Explicitly patch instances to ensure our forward is used
@@ -309,7 +308,12 @@ def main() -> None:
     verify_model_output(model, "Policy Model")
     verify_model_output(ref_model, "Ref Model")
 
-    print("✓ Model loaded on GPU, reference model on CPU", flush=True)
+    # Align reference model device with policy model
+    try:
+        ref_model.to(model.device)
+    except Exception:
+        pass
+    print("✓ Models loaded", flush=True)
 
     # Ensure generation_config is accessible on the wrapper for TRL v0.25.1+
     # The wrapper (AutoModelForCausalLMWithValueHead) might not expose it directly
