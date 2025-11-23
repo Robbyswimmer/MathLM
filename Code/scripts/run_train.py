@@ -130,7 +130,7 @@ def _patched_forward(self, *args, **kwargs):
         )
     return output
 
-print("Applying monkeypatch to AutoModelForCausalLMWithValueHead.forward...", flush=True)
+print("Applying monkeypatch to AutoModelForCausalLMWithValueHead.forward...", file=sys.stderr, flush=True)
 AutoModelForCausalLMWithValueHead.forward = _patched_forward
 
 # Add missing 'score' method which TRL v0.25.1 expects on the value model
@@ -140,7 +140,7 @@ if not hasattr(AutoModelForCausalLMWithValueHead, "score"):
     AutoModelForCausalLMWithValueHead.score = _score
 
 def verify_model_output(model, name="Model"):
-    print(f"Verifying output format for {name}...", flush=True)
+    print(f"Verifying output format for {name}...", file=sys.stderr, flush=True)
     try:
         # Get device safely
         device = getattr(model, "device", None)
@@ -157,29 +157,29 @@ def verify_model_output(model, name="Model"):
         with torch.no_grad():
             output = model(dummy_input, attention_mask=dummy_mask, return_dict=True)
         
-        print(f"  Output type: {type(output)}", flush=True)
+        print(f"  Output type: {type(output)}", file=sys.stderr, flush=True)
         if hasattr(output, "logits"):
-            print(f"  ✓ Output has .logits attribute", flush=True)
+            print(f"  ✓ Output has .logits attribute", file=sys.stderr, flush=True)
         else:
-            print(f"  ✗ Output MISSING .logits attribute!", flush=True)
+            print(f"  ✗ Output MISSING .logits attribute!", file=sys.stderr, flush=True)
             
         if hasattr(output, "value"):
-            print(f"  ✓ Output has .value attribute", flush=True)
+            print(f"  ✓ Output has .value attribute", file=sys.stderr, flush=True)
             
         if isinstance(output, tuple):
-             print(f"  ! Output is a tuple (patched wrapper should handle this)", flush=True)
+             print(f"  ! Output is a tuple (patched wrapper should handle this)", file=sys.stderr, flush=True)
         
         # Check iterability
         try:
             iter(output)
-            print(f"  ✓ Output is iterable", flush=True)
+            print(f"  ✓ Output is iterable", file=sys.stderr, flush=True)
         except TypeError:
-            print(f"  ✗ Output is NOT iterable!", flush=True)
+            print(f"  ✗ Output is NOT iterable!", file=sys.stderr, flush=True)
             
     except Exception as e:
-        print(f"  ✗ Verification failed with error: {e}", flush=True)
+        print(f"  ✗ Verification failed with error: {e}", file=sys.stderr, flush=True)
         import traceback
-        traceback.print_exc()
+        traceback.print_exc(file=sys.stderr)
 # -------------------------------------------------
 
 
@@ -226,7 +226,7 @@ def main() -> None:
     args = parse_args()
 
     print("="*60, flush=True)
-    print("MathLM PPO Training - VERSION: PATCH_VERIFY_V1", flush=True)
+    print("MathLM PPO Training - VERSION: PATCH_VERIFY_V1", file=sys.stderr, flush=True)
     print("="*60, flush=True)
     print(f"Config: {args.config}", flush=True)
     print(f"Output dir: {args.output_dir}", flush=True)
