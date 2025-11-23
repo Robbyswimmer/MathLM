@@ -127,15 +127,16 @@ class MathLMPPORunner:
         encodings = self.tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, max_length=512)
         query_tensors = encodings["input_ids"].to(device)
 
-        # Generate responses using the model
-        response_tensors = self.trainer.generate(
-            query_tensors,
-            max_new_tokens=self.max_new_tokens,
-            do_sample=True,
-            temperature=0.7,
-            top_p=0.9,
-            pad_token_id=self.tokenizer.pad_token_id or self.tokenizer.eos_token_id,
-        )
+        # Generate responses using the model directly
+        with torch.no_grad():
+            response_tensors = model.generate(
+                query_tensors,
+                max_new_tokens=self.max_new_tokens,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                pad_token_id=self.tokenizer.pad_token_id or self.tokenizer.eos_token_id,
+            )
 
         # Decode responses (full output including prompt)
         responses = self.tokenizer.batch_decode(response_tensors, skip_special_tokens=True)
