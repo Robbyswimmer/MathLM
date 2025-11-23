@@ -12,6 +12,10 @@ class MathRewardModel(nn.Module):
         super().__init__()
         self.reward_calc = reward_calc
         self.tokenizer = tokenizer
+        # TRL v0.25.1 compatibility
+        self.base_model_prefix = "reward_calc"
+        self.config = nn.Module() # Dummy config
+        self.config.is_encoder_decoder = False
     
     def forward(
         self, 
