@@ -171,11 +171,19 @@ def main() -> None:
     # Convert dataset to HuggingFace Dataset format
     print("\nPreparing HuggingFace Dataset...", flush=True)
     # TRL expects 'input_ids' for the data collator to work correctly
+    # We also need attention_mask for proper padding
+    input_ids = []
+    attention_masks = []
+    for ex in dataset.examples:
+        tokenized = tokenizer(ex.prompt, truncation=True, max_length=512)
+        input_ids.append(tokenized["input_ids"])
+        attention_masks.append(tokenized["attention_mask"])
+
     dataset_dict = {
-        "input_ids": [tokenizer.encode(ex.prompt, truncation=True, max_length=512) for ex in dataset.examples],
+        "input_ids": input_ids,
+        "attention_mask": attention_masks,
     }
-    # We also add 'query' as a copy of input_ids because some TRL versions might look for it
-    dataset_dict["query"] = dataset_dict["input_ids"]
+    # Do NOT add 'query' column as it confuses the data collator (it tries to pad it and fails)
     
     hf_dataset = Dataset.from_dict(dataset_dict)
     print(f"✓ Dataset prepared: {len(hf_dataset)} examples", flush=True)
