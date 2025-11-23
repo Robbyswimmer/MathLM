@@ -285,17 +285,18 @@ def main() -> None:
         tokenizer.pad_token = tokenizer.eos_token
 
     # Load model with value head for PPO
+    # Use fp32 for stability (avoid fp16/bf16 NaNs/asserts on this kernel)
     model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.training.model_name,
         return_dict=True,
-        torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
+        torch_dtype=torch.float32,
     )
 
     # Load reference model on same device as policy to avoid device mismatches
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.training.model_name,
         return_dict=True,
-        torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", False) else torch.float16,
+        torch_dtype=torch.float32,
     )
 
     # Explicitly patch instances to ensure our forward is used
@@ -403,15 +404,16 @@ def main() -> None:
         batch_size=config.training.batch_size,
         mini_batch_size=1,
         gradient_accumulation_steps=getattr(config.training, "gradient_accumulation_steps", 1),
+        fp16=False,
+        bf16=False,
     )
 
     ppo_config.target_kl = config.training.kl_target
     ppo_config.init_kl_coef = config.training.kl_target
 
     # Set other attributes explicitly to support varying TRL versions
-    if hasattr(config.training, "bf16"):
-        ppo_config.bf16 = config.training.bf16
-        ppo_config.fp16 = not config.training.bf16
+    ppo_config.bf16 = False
+    ppo_config.fp16 = False
 
     ppo_config.kl_penalty = "kl"
     ppo_config.model_name = config.training.model_name
