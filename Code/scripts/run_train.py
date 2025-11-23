@@ -431,6 +431,7 @@ def main() -> None:
         ref_model=ref_model,
         processing_class=tokenizer,
         train_dataset=hf_dataset,
+        eval_dataset=hf_dataset,
         reward_model=reward_model_wrapper,
         value_model=value_model,
     )
