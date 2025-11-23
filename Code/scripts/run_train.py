@@ -86,6 +86,99 @@ def _ensure_base_prefix(module) -> None:
         setattr(module, prefix, module)
 
 
+def _init_ppo_config(train_cfg) -> PPOConfig:
+    """Create a PPOConfig that is compatible with the installed TRL version."""
+    sig = inspect.signature(PPOConfig.__init__)
+    param_names = set(sig.parameters.keys())
+
+    def build(**kwargs):
+        filtered = {k: v for k, v in kwargs.items() if k in param_names}
+        return PPOConfig(**filtered)
+
+    attempts = [
+        {"bf16": False, "fp16": True},
+        {"bf16": False, "fp16": False},
+        {},
+    ]
+    for attempt in attempts:
+        try:
+            cfg = build(**attempt)
+            break
+        except ValueError as err:
+            if "bf16" in str(err).lower():
+                continue
+            raise
+        except TypeError:
+            continue
+    else:  # pragma: no cover - should not happen
+        cfg = PPOConfig()
+
+    # Populate common knobs; setattr guards against version differences.
+    for key, value in [
+        ("learning_rate", train_cfg.learning_rate),
+        ("batch_size", train_cfg.batch_size),
+        ("mini_batch_size", max(1, train_cfg.batch_size // 2)),
+        ("target_kl", train_cfg.kl_target),
+        ("init_kl_coef", train_cfg.kl_target),
+        ("kl_penalty", "kl"),
+        ("model_name", train_cfg.model_name),
+    ]:
+        try:
+            setattr(cfg, key, value)
+        except Exception:
+            pass
+    return cfg
+
+
+def _make_ppo_config(training_cfg: ExperimentConfig) -> PPOConfig:
+    """Instantiate PPOConfig while guarding against version differences."""
+    kwargs = {}
+    cfg_sig = inspect.signature(PPOConfig.__init__)
+    valid_params = set(cfg_sig.parameters.keys())
+    # Prefer disabling bf16 for clusters without support; fall back to fp16 if available.
+    for key, value in [
+        ("bf16", False),
+        ("fp16", True),
+        ("half_precision_backend", "auto"),
+    ]:
+        if key in valid_params:
+            kwargs[key] = value
+    try:
+        ppo_config = PPOConfig(**kwargs)
+    except TypeError:
+        ppo_config = PPOConfig(bf16=False, fp16=False)
+    # Set common attributes post-init defensively.
+    for key, value in [
+        ("learning_rate", training_cfg.training.learning_rate),
+        ("batch_size", training_cfg.training.batch_size),
+        ("mini_batch_size", max(1, training_cfg.training.batch_size // 2)),
+        ("target_kl", training_cfg.training.kl_target),
+        ("init_kl_coef", training_cfg.training.kl_target),
+        ("kl_penalty", "kl"),
+        ("model_name", training_cfg.training.model_name),
+        ("bf16", False),
+        ("fp16", True),
+    ]:
+        try:
+            setattr(ppo_config, key, value)
+        except Exception:
+            pass
+    return ppo_config
+
+
+def _configure_precision(ppo_config) -> None:
+    """Force fp16 when bf16 is unsupported to avoid TRL/transformers errors."""
+    try:
+        import torch
+    except Exception:  # pragma: no cover - defensive
+        return
+    bf16_ok = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+    if not bf16_ok and hasattr(ppo_config, "bf16"):
+        ppo_config.bf16 = False
+    if not bf16_ok and hasattr(ppo_config, "fp16"):
+        ppo_config.fp16 = True
+
+
 def main() -> None:
     args = parse_args()
 
@@ -177,7 +270,18 @@ def main() -> None:
     print(f"✓ Dataset prepared: {len(hf_dataset)} examples", flush=True)
 
     print("\nInitializing PPO configuration...", flush=True)
-    ppo_config = PPOConfig()
+    ppo_init_kwargs = {"bf16": False}
+    # Prefer fp16 on GPUs to avoid bf16 requirement in some TRL versions
+    ppo_init_kwargs["fp16"] = True
+    try:
+        ppo_config = PPOConfig(**ppo_init_kwargs)
+    except TypeError:
+        # Older signatures may not accept bf16/fp16 kwargs
+        # Disable bf16 (not supported on V100/A100-less clusters); allow overriding via setattr below.
+        ppo_config = PPOConfig(bf16=False, fp16=True)
+    except ValueError:
+        # In case bf16 check still triggers, retry without overrides
+        ppo_config = PPOConfig()
     # Populate common knobs; setattr guards against version differences.
     for key, value in [
         ("learning_rate", config.training.learning_rate),
@@ -187,6 +291,8 @@ def main() -> None:
         ("init_kl_coef", config.training.kl_target),
         ("kl_penalty", "kl"),
         ("model_name", config.training.model_name),
+        ("bf16", False),
+        ("fp16", True),
     ]:
         try:
             setattr(ppo_config, key, value)
