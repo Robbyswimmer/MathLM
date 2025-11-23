@@ -42,9 +42,31 @@ if _orig_unwrap_for_gen is not None and _orig_unwrap is not None:
         @contextmanager
         def _ctx():
             unwrapped = _orig_unwrap(model)
+
+            # Ensure unwrapped model has gradient_checkpointing methods (even if no-op)
+            if not hasattr(unwrapped, "gradient_checkpointing_disable"):
+                unwrapped.gradient_checkpointing_disable = lambda: None
+            if not hasattr(unwrapped, "gradient_checkpointing_enable"):
+                unwrapped.gradient_checkpointing_enable = lambda: None
+
+            # Safely disable gradient checkpointing if method exists
+            if hasattr(unwrapped, "gradient_checkpointing_disable"):
+                try:
+                    unwrapped.gradient_checkpointing_disable()
+                except Exception:
+                    pass
+
             yield unwrapped
+
+            # Safely re-enable gradient checkpointing if method exists
+            if hasattr(unwrapped, "gradient_checkpointing_enable"):
+                try:
+                    unwrapped.gradient_checkpointing_enable()
+                except Exception:
+                    pass
         return _ctx()
     trl_utils.unwrap_model_for_generation = safe_unwrap_model_for_generation  # type: ignore
+    print("✓ Patched trl_utils.unwrap_model_for_generation to handle missing gradient_checkpointing methods", flush=True)
 
 # --- Monkeypatch for TRL v0.25.1 Compatibility ---
 # TRL's AutoModelForCausalLMWithValueHead might return a tuple even with return_dict=True
