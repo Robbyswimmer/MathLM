@@ -341,12 +341,25 @@ def main() -> None:
         torch_dtype=torch.bfloat16,
     )
 
-    # Load reference model on GPU (Accelerate/TRL will shard/replicate as needed)
-    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
-        config.training.model_name,
-        return_dict=True,
-        torch_dtype=torch.bfloat16,
-    )
+    # Load reference model
+    # In multi-GPU, keep on CPU to save GPU memory (will move batches to GPU as needed)
+    # In single-GPU, load on GPU
+    world_size_early = int(os.environ.get("WORLD_SIZE", "1"))
+    if world_size_early > 1:
+        ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+            config.training.model_name,
+            return_dict=True,
+            torch_dtype=torch.bfloat16,
+            device_map="cpu",
+        )
+        print("✓ Reference model loaded on CPU (multi-GPU memory saving)", flush=True)
+    else:
+        ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
+            config.training.model_name,
+            return_dict=True,
+            torch_dtype=torch.bfloat16,
+        )
+        print("✓ Reference model loaded on GPU (single-GPU)", flush=True)
     log_cuda_memory("After model + ref_model load")
 
     # Explicitly patch instances to ensure our forward is used
@@ -419,8 +432,8 @@ def main() -> None:
         model.config.use_cache = True
         print("✓ Gradient checkpointing disabled (multi-GPU for DDP compatibility)", flush=True)
 
-    # Limit generation length to avoid OOM (tunable via env MAX_NEW_TOKENS)
-    gen_max = int(os.environ.get("MAX_NEW_TOKENS", 64 if world_size > 1 else 128))
+    # Limit generation length to avoid OOM (aggressive limits for multi-GPU)
+    gen_max = int(os.environ.get("MAX_NEW_TOKENS", 48 if world_size > 1 else 128))
     if hasattr(model, "generation_config"):
         model.generation_config.max_new_tokens = gen_max
         model.generation_config.min_new_tokens = 1
@@ -428,6 +441,7 @@ def main() -> None:
         ref_model.generation_config.max_new_tokens = gen_max
         ref_model.generation_config.min_new_tokens = 1
         ref_model.is_gradient_checkpointing = False
+    print(f"✓ Generation max_new_tokens set to {gen_max}", flush=True)
 
     # Create a simple reward model (unused for PPO but kept for compatibility)
     # reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
@@ -440,7 +454,8 @@ def main() -> None:
     print("\nPreparing HuggingFace Dataset...", flush=True)
     # TRL expects 'input_ids' for the data collator to work correctly
     # We also need attention_mask for proper padding
-    prompt_max_len = int(os.environ.get("PROMPT_MAX_LEN", 192 if int(os.environ.get("WORLD_SIZE", "1")) > 1 else 128))
+    # Reduce to 128 tokens for multi-GPU to save memory
+    prompt_max_len = int(os.environ.get("PROMPT_MAX_LEN", 128))
     input_ids = []
     attention_masks = []
     for ex in dataset.examples:
