@@ -107,7 +107,7 @@ def main():
         response_text = response[len(prompt):].strip()
 
         # Evaluate with reward calculator
-        breakdown = reward_calc.evaluate(example.question, response_text)
+        breakdown = reward_calc.evaluate(example, response_text)
 
         # Check if correct (exact reward > 0)
         is_correct = breakdown.exact_reward > 0
