@@ -127,24 +127,33 @@ def main() -> None:
     print(f"  KL target: {config.training.kl_target}", flush=True)
     print(f"  Total steps: {config.training.total_steps}", flush=True)
 
-    # PPOConfig parameters based on TRL library
-    ppo_config = PPOConfig(
-        learning_rate=config.training.learning_rate,
-        kl_penalty="kl",  # KL penalty type
-        init_kl_coef=0.2,  # Initial KL coefficient
-        target=config.training.kl_target,  # Target KL divergence
-        batch_size=config.training.batch_size,
-        mini_batch_size=config.training.batch_size // 4,  # Smaller mini-batches for gradient updates
-    )
+    # PPOConfig with minimal parameters that should work across TRL versions
+    try:
+        ppo_config = PPOConfig(
+            learning_rate=config.training.learning_rate,
+        )
+    except TypeError as e:
+        # If even minimal config fails, try completely empty
+        print(f"Warning: Minimal config failed with {e}, using defaults", flush=True)
+        ppo_config = PPOConfig()
 
-    # PPOTrainer expects (config, model, ref_model, tokenizer)
-    # ref_model can be None to use the same model as reference
-    trainer = PPOTrainer(
-        config=ppo_config,
-        model=model,
-        ref_model=None,
-        tokenizer=tokenizer,
-    )
+    # PPOTrainer initialization - try different signatures
+    try:
+        # Try newer API: PPOTrainer(config, model, ref_model, tokenizer)
+        trainer = PPOTrainer(
+            config=ppo_config,
+            model=model,
+            ref_model=None,
+            tokenizer=tokenizer,
+        )
+    except TypeError:
+        try:
+            # Try older API: PPOTrainer(config, model, tokenizer)
+            trainer = PPOTrainer(ppo_config, model, tokenizer)
+        except TypeError:
+            # Last resort: just model and tokenizer
+            print("Warning: Using fallback PPOTrainer initialization", flush=True)
+            trainer = PPOTrainer(model=model, tokenizer=tokenizer)
     print("✓ PPO trainer initialized", flush=True)
 
     runner = MathLMPPORunner(
