@@ -112,26 +112,34 @@ class MathLMPPORunner:
             rollouts.append(Rollout(prompt=example.prompt, response_text=response_text, breakdown=breakdown))
         return rollouts, None
 
+    def _unwrap_generation_model(self) -> Tuple[object, object]:
+        """Return (gen_model, device) suitable for .generate()."""
+        trainer = self.trainer
+        assert trainer is not None  # for type checkers
+        # Prefer trainer.policy_model if exposed by TRL
+        candidates = [getattr(trainer, "policy_model", None), getattr(trainer, "model", None)]
+        for cand in candidates:
+            if cand is None:
+                continue
+            # Walk common attribute names to reach the underlying HF causal LM
+            for attr in ("policy_model", "pretrained_model", "base_model", "model", "transformer"):
+                if hasattr(cand, attr):
+                    cand = getattr(cand, attr)
+            if hasattr(cand, "generate"):
+                device = next(cand.parameters()).device  # type: ignore[arg-type]
+                return cand, device  # type: ignore[return-value]
+        # Fallback: last resort to trainer.model itself
+        model = getattr(trainer, "model")
+        device = next(model.parameters()).device  # type: ignore[arg-type]
+        return model, device  # type: ignore[return-value]
+
     def _trl_batch(self, batch: List[PromptExample]) -> Tuple[List[Rollout], Optional[Dict[str, Any]]]:
         """Use TRL PPOTrainer to generate responses and perform PPO update."""
         if torch is None:
             raise RuntimeError("PyTorch is required for training.")
         assert self.trainer is not None and self.tokenizer is not None
 
-        # Get model from trainer - unwrap to get the pretrained model used for generation
-        model = self.trainer.model
-        gen_model = None
-        # TRL PolicyAndValueWrapper exposes the policy model as `policy_model`
-        if hasattr(model, "policy_model"):
-            gen_model = model.policy_model
-        # Some wrappers expose `pretrained_model` or `base_model`
-        if gen_model is None and hasattr(model, "pretrained_model"):
-            gen_model = model.pretrained_model
-        if gen_model is None and hasattr(model, "base_model"):
-            gen_model = model.base_model
-        if gen_model is None:
-            gen_model = model
-        device = next(gen_model.parameters()).device
+        gen_model, device = self._unwrap_generation_model()
 
         # Prepare prompts
         prompts = [example.prompt for example in batch]
