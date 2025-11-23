@@ -113,38 +113,50 @@ class MathLMPPORunner:
         return rollouts, None
 
     def _trl_batch(self, batch: List[PromptExample]) -> Tuple[List[Rollout], Optional[Dict[str, Any]]]:
+        """Use TRL PPOTrainer to generate responses and perform PPO update."""
         if torch is None:
-            raise RuntimeError("PyTorch is required for PPO training with TRL.")
+            raise RuntimeError("PyTorch is required for training.")
         assert self.trainer is not None and self.tokenizer is not None
-        accelerator = getattr(self.trainer, "accelerator", None)
-        device = getattr(accelerator, "device", "cpu")
+
+        # Get model from trainer
+        model = self.trainer.model
+        device = next(model.parameters()).device
+
+        # Prepare prompts
         prompts = [example.prompt for example in batch]
-        encodings = self.tokenizer(prompts, return_tensors="pt", padding=True)
-        input_ids = encodings["input_ids"].to(device)
-        attention_mask = encodings.get("attention_mask")
-        if attention_mask is not None:
-            attention_mask = attention_mask.to(device)
+        encodings = self.tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, max_length=512)
+        query_tensors = encodings["input_ids"].to(device)
+
+        # Generate responses using the model
         response_tensors = self.trainer.generate(
-            input_ids,
-            attention_mask=attention_mask,
+            query_tensors,
             max_new_tokens=self.max_new_tokens,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            pad_token_id=self.tokenizer.pad_token_id or self.tokenizer.eos_token_id,
         )
-        generations = response_tensors[:, input_ids.shape[-1] :]
-        responses = self.tokenizer.batch_decode(generations, skip_special_tokens=True)
+
+        # Decode responses (full output including prompt)
+        responses = self.tokenizer.batch_decode(response_tensors, skip_special_tokens=True)
+        # Extract just the generated part
+        prompt_texts = self.tokenizer.batch_decode(query_tensors, skip_special_tokens=True)
+        response_texts = [resp[len(prompt):].strip() for resp, prompt in zip(responses, prompt_texts)]
+
+        # Compute rewards using our custom reward calculator
         reward_values: List[float] = []
         rollouts: List[Rollout] = []
-        for example, response_text in zip(batch, responses):
+        for example, response_text in zip(batch, response_texts):
             breakdown = self.reward_calc.evaluate(example.question, response_text)
             rollouts.append(Rollout(prompt=example.prompt, response_text=response_text, breakdown=breakdown))
             reward_values.append(breakdown.total)
-        queries = [ids for ids in input_ids]
-        responses_tensor = [gen for gen in generations]
-        dtype = getattr(torch, "float32", None)
-        tensor_kwargs: Dict[str, Any] = {"device": device}
-        if dtype is not None:
-            tensor_kwargs["dtype"] = dtype
-        rewards_tensor = torch.tensor(reward_values, **tensor_kwargs)
-        stats = self.trainer.step(queries, responses_tensor, rewards_tensor)
+
+        # Convert rewards to tensors for PPO update
+        rewards = [torch.tensor(r, device=device) for r in reward_values]
+
+        # Perform PPO step using TRL's trainer
+        stats = self.trainer.step(query_tensors.tolist(), response_tensors.tolist(), rewards)
+
         return rollouts, stats
 
     def _build_log_record(self, step: int, rollout: Rollout, trainer_stats: Dict[str, Any]) -> Dict[str, Any]:

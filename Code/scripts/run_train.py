@@ -19,13 +19,16 @@ from mathlm.utils import ExperimentConfig, parse_config
 from mathlm.utils.yaml_loader import load_config as load_yaml_config
 
 try:
-    from trl import PPOTrainer, PPOConfig  # type: ignore
+    from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead  # type: ignore
     from transformers import AutoTokenizer, AutoModelForCausalLM  # type: ignore
+    from datasets import Dataset  # type: ignore
 except Exception:  # pragma: no cover - TRL may be absent during scaffolding
     PPOTrainer = None  # type: ignore
     PPOConfig = None  # type: ignore
     AutoTokenizer = None  # type: ignore
     AutoModelForCausalLM = None  # type: ignore
+    AutoModelForCausalLMWithValueHead = None  # type: ignore
+    Dataset = None  # type: ignore
 
 
 def load_experiment(config_path: Path) -> ExperimentConfig:
@@ -110,50 +113,49 @@ def main() -> None:
         "traces_dir": traces_dir,
     }
 
-    if PPOTrainer is None:
-        print("\n⚠ TRL not installed; running stub trainer for logging only.", flush=True)
-        runner = MathLMPPORunner(dataset, reward_calc, logger, **runner_kwargs)
-        runner.run(total_steps=config.training.total_steps)
-        return
-
-    print(f"\nLoading model: {config.training.model_name}", flush=True)
+    print(f"\nLoading model with value head: {config.training.model_name}", flush=True)
     tokenizer = AutoTokenizer.from_pretrained(config.training.model_name)
-    model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
-    print("✓ Model loaded", flush=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    # Load model with value head for PPO
+    model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name)
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name)
+    print("✓ Model and reference model loaded", flush=True)
+
+    # Create a simple reward model (we'll override rewards with our calculator)
+    reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
+    print("✓ Reward model loaded", flush=True)
+
+    # Create value model (same as policy model's value head)
+    value_model = model.v_head
+    print("✓ Value model initialized", flush=True)
+
+    # Convert dataset to HuggingFace Dataset format
+    print("\nPreparing HuggingFace Dataset...", flush=True)
+    dataset_dict = {
+        "query": [ex.prompt for ex in dataset.examples],
+        "input_ids": [tokenizer.encode(ex.prompt, truncation=True, max_length=512) for ex in dataset.examples],
+    }
+    hf_dataset = Dataset.from_dict(dataset_dict)
+    print(f"✓ Dataset prepared: {len(hf_dataset)} examples", flush=True)
+
+    print("\nInitializing PPO configuration...", flush=True)
+    ppo_config = PPOConfig(
+        learning_rate=config.training.learning_rate,
+        kl_coef=config.training.kl_target,
+    )
 
     print("\nInitializing PPO trainer...", flush=True)
-    print(f"  Batch size: {config.training.batch_size}", flush=True)
-    print(f"  Learning rate: {config.training.learning_rate}", flush=True)
-    print(f"  KL target: {config.training.kl_target}", flush=True)
-    print(f"  Total steps: {config.training.total_steps}", flush=True)
-
-    # PPOConfig with minimal parameters that should work across TRL versions
-    try:
-        ppo_config = PPOConfig(
-            learning_rate=config.training.learning_rate,
-        )
-    except TypeError as e:
-        # If even minimal config fails, try completely empty
-        print(f"Warning: Minimal config failed with {e}, using defaults", flush=True)
-        ppo_config = PPOConfig()
-
-    # PPOTrainer initialization - try different signatures
-    try:
-        # Try newer API: PPOTrainer(config, model, ref_model, tokenizer)
-        trainer = PPOTrainer(
-            config=ppo_config,
-            model=model,
-            ref_model=None,
-            tokenizer=tokenizer,
-        )
-    except TypeError:
-        try:
-            # Try older API: PPOTrainer(config, model, tokenizer)
-            trainer = PPOTrainer(ppo_config, model, tokenizer)
-        except TypeError:
-            # Last resort: just model and tokenizer
-            print("Warning: Using fallback PPOTrainer initialization", flush=True)
-            trainer = PPOTrainer(model=model, tokenizer=tokenizer)
+    trainer = PPOTrainer(
+        args=ppo_config,
+        processing_class=tokenizer,
+        model=model,
+        ref_model=ref_model,
+        reward_model=reward_model,
+        train_dataset=hf_dataset,
+        value_model=value_model,
+    )
     print("✓ PPO trainer initialized", flush=True)
 
     runner = MathLMPPORunner(
