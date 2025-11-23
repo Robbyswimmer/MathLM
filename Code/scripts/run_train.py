@@ -128,12 +128,11 @@ def main() -> None:
     print(f"  Total steps: {config.training.total_steps}", flush=True)
 
     ppo_config = PPOConfig(
-        model_name=config.training.model_name,
         batch_size=config.training.batch_size,
         learning_rate=config.training.learning_rate,
         target_kl=config.training.kl_target,
     )
-    trainer = PPOTrainer(ppo_config, model, tokenizer)
+    trainer = PPOTrainer(ppo_config, model, None, tokenizer)
     print("✓ PPO trainer initialized", flush=True)
 
     runner = MathLMPPORunner(
