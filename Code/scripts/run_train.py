@@ -124,8 +124,8 @@ def main() -> None:
         tokenizer.pad_token = tokenizer.eos_token
 
     # Load model with value head for PPO
-    model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name)
-    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name)
+    model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name, return_dict=True)
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.training.model_name, return_dict=True)
 
     print("✓ Model and reference model loaded", flush=True)
 
