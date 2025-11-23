@@ -14,25 +14,16 @@ class MathRewardModel(nn.Module):
         self.tokenizer = tokenizer
         # TRL v0.25.1 compatibility
         # TRL expects base_model_prefix to point to a callable "backbone" module.
-        # We cannot use self.model = self because it causes RecursionError in .to()
-        # Instead, we define a dummy backbone that calls back to us or does nothing?
-        # Actually, TRL does: backbone = getattr(model, model.base_model_prefix)
-        # output = backbone(input_ids, ...)
-        
-        # So we need an attribute that IS callable and does the work.
-        # Let's make 'backbone' a simple wrapper that calls our forward.
-        class Backbone(nn.Module):
-            def __init__(self, parent):
-                super().__init__()
-                self.parent = parent
-            def forward(self, *args, **kwargs):
-                return self.parent.forward(*args, **kwargs)
-                
-        self.backbone = Backbone(self)
-        self.base_model_prefix = "backbone"
+        # We use a property to return 'self' to avoid RecursionError in .to()
+        # (properties are not registered as child modules)
+        self.base_model_prefix = "model"
         
         self.config = nn.Module() # Dummy config
         self.config.is_encoder_decoder = False
+
+    @property
+    def model(self):
+        return self
     
     def forward(
         self, 
