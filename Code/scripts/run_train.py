@@ -642,6 +642,25 @@ def main() -> None:
     print("TRAINING COMPLETE", flush=True)
     print("="*60, flush=True)
 
+    # Save final model
+    final_checkpoint = checkpoint_dir / "final"
+    final_checkpoint.mkdir(parents=True, exist_ok=True)
+    print(f"\nSaving final model to {final_checkpoint}...", flush=True)
+    try:
+        trainer.save_model(str(final_checkpoint))
+        tokenizer.save_pretrained(str(final_checkpoint))
+        print(f"✓ Final model saved successfully", flush=True)
+    except Exception as e:
+        print(f"! Error saving final model: {e}", flush=True)
+        print("Attempting fallback save with PyTorch...", flush=True)
+        try:
+            import torch
+            torch.save(trainer.model.state_dict(), str(final_checkpoint / "pytorch_model.bin"))
+            tokenizer.save_pretrained(str(final_checkpoint))
+            print(f"✓ Model saved with PyTorch fallback", flush=True)
+        except Exception as e2:
+            print(f"! Fallback save also failed: {e2}", flush=True)
+
 
 if __name__ == "__main__":
     main()

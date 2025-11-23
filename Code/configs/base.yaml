@@ -24,5 +24,5 @@ training:
   learning_rate: 1.0e-5
   kl_target: 0.08
   entropy_coef: 0.01
-  checkpoint_interval: 1000
+  checkpoint_interval: 50000  # Only save at end (higher than total_steps)
   bf16: true
