@@ -143,6 +143,9 @@ def main() -> None:
     reward_model = AutoModelForCausalLM.from_pretrained(config.training.model_name)
     print("✓ Reward model loaded", flush=True)
 
+    # Value head (used by some PPOTrainer signatures)
+    value_model = getattr(model, "v_head", None)
+
     # Ensure generation configs exist so PPOTrainer can set stop/pad tokens
     _ensure_generation_config(model, tokenizer)
     _ensure_generation_config(ref_model, tokenizer)
@@ -189,12 +192,16 @@ def main() -> None:
         trainer_kwargs["ref_model"] = ref_model
     if "tokenizer" in param_names:
         trainer_kwargs["tokenizer"] = tokenizer
+    if "processing_class" in param_names:
+        trainer_kwargs["processing_class"] = tokenizer
     if "dataset" in param_names:
         trainer_kwargs["dataset"] = hf_dataset
     elif "train_dataset" in param_names:
         trainer_kwargs["train_dataset"] = hf_dataset
     if "reward_model" in param_names:
         trainer_kwargs["reward_model"] = reward_model
+    if "value_model" in param_names and value_model is not None:
+        trainer_kwargs["value_model"] = value_model
 
     try:
         trainer = PPOTrainer(**trainer_kwargs)
@@ -202,6 +209,10 @@ def main() -> None:
         # Fallback: drop tokenizer if not supported
         if "tokenizer" in trainer_kwargs:
             trainer_kwargs.pop("tokenizer")
+        if "processing_class" in trainer_kwargs:
+            trainer_kwargs.pop("processing_class")
+        if "value_model" in trainer_kwargs:
+            trainer_kwargs.pop("value_model")
         trainer = PPOTrainer(**trainer_kwargs)
     print("✓ PPO trainer initialized", flush=True)
 
