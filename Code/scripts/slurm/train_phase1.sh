@@ -6,7 +6,7 @@
 #SBATCH --time=48:00:00
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:2
 #SBATCH --mail-type=FAIL,END
 #SBATCH --mail-user=rmose009@ucr.edu
 #SBATCH -p gpu
@@ -44,7 +44,10 @@ echo "Data dir: ${DATA_DIR}"
 echo "Output root: ${OUTPUT_ROOT}"
 echo "Run ID: ${RUN_ID}"
 
-python scripts/run_train.py \
+ACCEL_PROCS=${ACCEL_PROCS:-2}
+ACCEL_CMD=(python -m accelerate.commands.launch --multi_gpu --num_processes ${ACCEL_PROCS} --num_machines 1)
+
+"${ACCEL_CMD[@]}" scripts/run_train.py \
   --config "${CONFIG_PATH}" \
   --data-dir "${DATA_DIR}" \
   --output-dir "${OUTPUT_ROOT}" \
