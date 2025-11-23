@@ -34,6 +34,21 @@ import math
 from contextlib import contextmanager
 import trl.models.utils as trl_utils
 
+# Disable safetensors globally to avoid shared memory errors with tied weights
+import os
+os.environ["SAFETENSORS_FAST_GPU"] = "0"
+
+# Monkey-patch PreTrainedModel.save_pretrained to always use safe_serialization=False
+from transformers import PreTrainedModel
+_original_save_pretrained = PreTrainedModel.save_pretrained
+
+def _patched_save_pretrained(self, *args, **kwargs):
+    kwargs["safe_serialization"] = False  # Force PyTorch bin format
+    return _original_save_pretrained(self, *args, **kwargs)
+
+PreTrainedModel.save_pretrained = _patched_save_pretrained
+print("✓ Patched save_pretrained to disable safetensors", flush=True)
+
 # Monkeypatch PolicyAndValueWrapper to add missing gradient_checkpointing methods
 # This must be done before PPOTrainer is instantiated
 def _noop_gc(self):
