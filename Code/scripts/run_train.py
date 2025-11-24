@@ -449,7 +449,8 @@ def main() -> None:
         print("✓ Gradient checkpointing disabled (multi-GPU for DDP compatibility)", flush=True)
 
     # Limit generation length to avoid OOM (aggressive limits for multi-GPU)
-    gen_max = int(os.environ.get("MAX_NEW_TOKENS", 32))
+    # Default to 256 to allow for Chain-of-Thought reasoning (32 was too short!)
+    gen_max = int(os.environ.get("MAX_NEW_TOKENS", 256))
     if hasattr(model, "generation_config"):
         model.generation_config.max_new_tokens = gen_max
         model.generation_config.min_new_tokens = 0
