@@ -45,11 +45,21 @@ class RewardBreakdown:
 
 
 class RewardCalculator:
-    def __init__(self, weights: RewardWeights | None = None, sandbox: PythonSandbox | None = None, repetition_penalty: float = -1.0, repetition_threshold: float = 0.5):
+    def __init__(
+        self,
+        weights: RewardWeights | None = None,
+        sandbox: PythonSandbox | None = None,
+        repetition_penalty: float = -2.0,
+        repetition_threshold: float = 0.4,
+        length_penalty: float = -0.5,
+        length_ratio_threshold: float = 1.5,
+    ):
         self.weights = weights or RewardWeights()
         self.sandbox = sandbox or PythonSandbox()
         self.repetition_penalty_value = repetition_penalty
         self.repetition_threshold = repetition_threshold
+        self.length_penalty_value = length_penalty
+        self.length_ratio_threshold = length_ratio_threshold
 
     def evaluate(self, example: GSM8KExample | str, model_output: str) -> RewardBreakdown:
         breakdown = RewardBreakdown()
@@ -87,6 +97,9 @@ class RewardCalculator:
         # Repetition penalty: if model repeats prompt content too much
         if is_repetitive(model_output, question_text, threshold=self.repetition_threshold):
             breakdown.repetition_penalty = self.repetition_penalty_value
+        # Length penalty: if output is too long relative to prompt
+        if is_too_long(model_output, question_text, ratio_threshold=self.length_ratio_threshold):
+            breakdown.penalty += self.length_penalty_value
         return breakdown
 
 
@@ -127,3 +140,10 @@ def is_repetitive(output: str, prompt: str, threshold: float = 0.6) -> bool:
     overlap = sum(1 for tok in output_tokens if tok in prompt_set)
     overlap_ratio = overlap / max(1, len(output_tokens))
     return overlap_ratio >= threshold
+
+
+def is_too_long(output: str, prompt: str, ratio_threshold: float = 1.5) -> bool:
+    """Penalize outputs that are much longer than the prompt."""
+    prompt_len = max(1, len(prompt.split()))
+    output_len = len(output.split())
+    return output_len / prompt_len >= ratio_threshold

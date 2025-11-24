@@ -477,9 +477,22 @@ def main() -> None:
     input_ids = []
     attention_masks = []
     for ex in dataset.examples:
-        tokenized = tokenizer(ex.prompt, truncation=True, max_length=prompt_max_len)
+        # Apply chat template if available (critical for instruction-tuned models like Gemma)
+        if hasattr(tokenizer, "apply_chat_template"):
+            messages = [{"role": "user", "content": ex.prompt}]
+            prompt_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        else:
+            prompt_text = ex.prompt
+            
+        tokenized = tokenizer(prompt_text, truncation=True, max_length=prompt_max_len)
         input_ids.append(tokenized["input_ids"])
         attention_masks.append(tokenized["attention_mask"])
+        
+    # Print first prompt to verify template application
+    print("\n" + "="*60, flush=True)
+    print("EXAMPLE PROMPT (after chat template):", flush=True)
+    print(tokenizer.decode(input_ids[0]), flush=True)
+    print("="*60 + "\n", flush=True)
 
     dataset_dict = {
         "input_ids": input_ids,
