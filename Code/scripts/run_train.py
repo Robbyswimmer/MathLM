@@ -347,6 +347,8 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(config.training.model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    # Critical for generation: pad on the left so generation can append new tokens correctly
+    tokenizer.padding_side = "left"
     log_cuda_memory("After tokenizer load")
 
     # Load model with value head for PPO
