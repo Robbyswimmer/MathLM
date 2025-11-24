@@ -709,10 +709,25 @@ def main() -> None:
                     device = next(model.parameters()).device
                     inputs = tokenizer(test_prompt, return_tensors="pt").to(device)
                     model.eval()
+
+                    # Use the same generation config as training
+                    gen_kwargs = {
+                        "max_new_tokens": int(os.environ.get("MAX_NEW_TOKENS", 512)),
+                        "do_sample": True,  # Match training
+                        "temperature": 0.7,  # Match training
+                        "pad_token_id": tokenizer.pad_token_id or tokenizer.eos_token_id,
+                    }
+
                     with torch.no_grad():
-                        outputs = model.generate(**inputs, max_new_tokens=128, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+                        outputs = model.generate(**inputs, **gen_kwargs)
                     response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                    response_text = response[len(test_prompt):].strip()
+
+                    # Extract just the model's response (after the prompt)
+                    if "<start_of_turn>model" in response:
+                        response_text = response.split("<start_of_turn>model")[-1].strip()
+                    else:
+                        response_text = response[len(test_prompt):].strip()
+
                     model.train()
 
                     print(f"Problem: Janet's ducks problem...", flush=True)
