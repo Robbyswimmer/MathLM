@@ -51,9 +51,11 @@ class RewardCalculator:
         self.repetition_penalty_value = repetition_penalty
         self.repetition_threshold = repetition_threshold
 
-    def evaluate(self, example: GSM8KExample, model_output: str) -> RewardBreakdown:
+    def evaluate(self, example: GSM8KExample | str, model_output: str) -> RewardBreakdown:
         breakdown = RewardBreakdown()
         python_blocks = extract_python_blocks(model_output)
+        question_text = example.question if hasattr(example, "question") else str(example)
+        answer_text = example.answer if hasattr(example, "answer") else None
         syntax_ok = False
         execution_ok = False
         if python_blocks:
@@ -77,12 +79,13 @@ class RewardCalculator:
             breakdown.extraction_reward = self.weights.extraction
         if has_reasoning_text(model_output):
             breakdown.reasoning_reward = self.weights.reasoning
-        if extracted_value is not None and answers_match(extracted_value, example.answer):
-            breakdown.exact_reward = self.weights.exact
-        else:
-            breakdown.penalty = self.weights.penalty
+        if answer_text is not None:
+            if extracted_value is not None and answers_match(extracted_value, answer_text):
+                breakdown.exact_reward = self.weights.exact
+            else:
+                breakdown.penalty = self.weights.penalty
         # Repetition penalty: if model repeats prompt content too much
-        if is_repetitive(model_output, example.question, threshold=self.repetition_threshold):
+        if is_repetitive(model_output, question_text, threshold=self.repetition_threshold):
             breakdown.repetition_penalty = self.repetition_penalty_value
         return breakdown
 
