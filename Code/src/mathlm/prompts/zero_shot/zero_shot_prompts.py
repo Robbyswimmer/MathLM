@@ -1,27 +1,11 @@
 '''Zero-shot prompt templates aligned with our reward model.'''
 
 ZERO_SHOT_PROMPT = '''
-Solve the following math problem step-by-step.
-
-Requirements:
-1. Show your reasoning clearly by explaining each step.
-2. Provide the final numerical answer at the end.
-
-Format your response as follows:
-<step-by-step reasoning - describe the problem and your approach>
-<final answer - the numerical result>
-
-Problem: If I have 3 apples and buy 2 more, how many do I have?
-
-<step-by-step reasoning>
-I start with 3 apples.
-I buy 2 more apples.
-Total apples = 3 + 2 = 5.
-
-<final answer>
-5
+Solve the following math problem step-by-step. Show your reasoning clearly and provide the final numerical answer.
 
 Problem: {problem}
+
+Solution:
 '''
 
 FEW_SHOT_EXAMPLES = """
