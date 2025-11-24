@@ -31,19 +31,37 @@ class MathRewardModel(nn.Module):
         attention_mask: Optional[torch.LongTensor] = None, 
         **kwargs
     ):
-        # Decode full sequences
-        texts = self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
+        # Decode full sequences with special tokens to find the separator
+        texts = self.tokenizer.batch_decode(input_ids, skip_special_tokens=False)
         
         rewards = []
         for text in texts:
-            parts = text.split("Answer:")
+            # Try splitting by Gemma's chat separator
+            # <start_of_turn>model
+            parts = text.split("<start_of_turn>model")
             if len(parts) >= 2:
+                question_part = parts[0].strip()
+                response_part = "".join(parts[1:]).strip()
+            # Fallback for other models or if separator is missing (e.g. truncated)
+            elif "Answer:" in text:
+                parts = text.split("Answer:")
                 question_part = "Answer:".join(parts[:-1]).strip()
                 response_part = parts[-1].strip()
             else:
-                question_part = text
-                response_part = ""
+                # Last resort: assume the whole thing is the question (will yield 0 reward)
+                # or try to find the last "Problem:" if it exists
+                if "Problem:" in text:
+                     parts = text.rsplit("Problem:", 1)
+                     question_part = parts[0] + "Problem:" + parts[1].split("\n", 1)[0]
+                     response_part = parts[1].split("\n", 1)[-1].strip()
+                else:
+                    question_part = text
+                    response_part = ""
             
+            # Clean up special tokens from the parts for the reward calculator
+            question_part = question_part.replace("<bos>", "").replace("<eos>", "").replace("<pad>", "").strip()
+            response_part = response_part.replace("<eos>", "").replace("<pad>", "").strip()
+
             breakdown = self.reward_calc.evaluate(question_part, response_part)
             rewards.append(breakdown.total)
             
