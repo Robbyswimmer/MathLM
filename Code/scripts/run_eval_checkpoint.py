@@ -96,23 +96,22 @@ def main():
     correct = 0
 
     for batch_start in range(0, len(examples), batch_size):
-        if batch_start == 0:
-            print(f"  Starting batch processing (batch_size={batch_size})...", flush=True)
+        print(f"  Batch {batch_start//batch_size + 1}: Processing examples {batch_start}-{min(batch_start + batch_size, len(examples))}", flush=True)
+
         batch_end = min(batch_start + batch_size, len(examples))
         batch_examples = examples[batch_start:batch_end]
 
         # Generate prompts for batch
         prompts = [get_zero_shot_prompt(template="default", problem=ex.question) for ex in batch_examples]
 
-        if batch_start == 0:
-            print(f"  Tokenizing first batch...", flush=True)
-
         # Batch generate
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, max_length=256)
 
-        if batch_start == 0:
-            print(f"  Generating responses...", flush=True)
+        # Move inputs to same device as model
+        if hasattr(model, 'device'):
+            inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
+        print(f"    Generating...", flush=True)
         outputs = model.generate(
             **inputs,
             max_new_tokens=128,
@@ -120,8 +119,7 @@ def main():
             pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
         )
 
-        if batch_start == 0:
-            print(f"  Decoding responses...", flush=True)
+        print(f"    Decoding...", flush=True)
 
         responses = tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
