@@ -82,12 +82,14 @@ def main():
     reward_calc = RewardCalculator(reward_weights)
 
     # Run evaluation with batching for speed
-    print("\nRunning evaluation...")
+    print("\nRunning evaluation...", flush=True)
     batch_size = 8
     results = []
     correct = 0
 
     for batch_start in range(0, len(examples), batch_size):
+        if batch_start == 0:
+            print(f"  Starting batch processing (batch_size={batch_size})...", flush=True)
         batch_end = min(batch_start + batch_size, len(examples))
         batch_examples = examples[batch_start:batch_end]
 
@@ -126,9 +128,9 @@ def main():
                 "exact_reward": breakdown.exact_reward,
             })
 
-        # Progress logging
+        # Progress logging - log every 10 batches (80 examples) or at milestones
         total_processed = batch_end
-        if total_processed % 100 == 0 or total_processed == len(examples):
+        if total_processed % 80 == 0 or total_processed % 100 == 0 or total_processed == len(examples):
             accuracy_so_far = 100 * correct / total_processed
             print(f"  Progress: {total_processed}/{len(examples)} ({100*total_processed/len(examples):.1f}%) | Accuracy: {accuracy_so_far:.2f}%", flush=True)
 
