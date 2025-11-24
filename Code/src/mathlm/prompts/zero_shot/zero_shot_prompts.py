@@ -6,7 +6,8 @@ Solve the following math problem step-by-step.
 Requirements:
 1. Show your reasoning clearly by explaining each step.
 2. Write lightweight Python code to compute the solution (no imports allowed).
-3. Provide the final numerical answer at the end.
+3. DO NOT define functions. Just write the code to calculate and print the answer directly.
+4. Provide the final numerical answer at the end.
 
 Format your response as follows:
 <step-by-step reasoning - describe the problem and your approach>
