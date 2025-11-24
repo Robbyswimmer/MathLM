@@ -132,7 +132,7 @@ def main() -> None:
     model = AutoModelForCausalLM.from_pretrained(
         config.training.model_name,
         device_map="auto",
-        torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", True) else torch.float32,
+        dtype=torch.bfloat16 if getattr(config.training, "bf16", True) else torch.float32,
     )
     model.config.use_cache = False
     print(f"✓ Model loaded", flush=True)
@@ -162,7 +162,7 @@ def main() -> None:
 
     hf_dataset = Dataset.from_dict({
         "prompt": prompts,
-        "answer": answers,
+        "answers": answers,  # Use plural to match reward function parameter
     })
     print(f"✓ HF dataset created: {len(hf_dataset)} examples", flush=True)
 
@@ -200,10 +200,10 @@ def main() -> None:
     print("\nInitializing GRPO trainer...", flush=True)
     trainer = GRPOTrainer(
         model=model,
-        args=grpo_config,
-        tokenizer=tokenizer,
-        train_dataset=hf_dataset,
         reward_funcs=[combined_math_reward],  # Our custom reward function
+        args=grpo_config,
+        train_dataset=hf_dataset,
+        processing_class=tokenizer,  # Use processing_class instead of tokenizer
     )
     print(f"✓ GRPO trainer initialized", flush=True)
     log_cuda_memory("After GRPOTrainer init")
