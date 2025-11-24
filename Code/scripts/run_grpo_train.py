@@ -126,11 +126,13 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(config.training.model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    # Critical for generation: pad on the left so generation can append new tokens correctly
+    tokenizer.padding_side = "left"
 
     model = AutoModelForCausalLM.from_pretrained(
         config.training.model_name,
         device_map="auto",
-        torch_dtype=torch.bfloat16 if config.training.bf16 else torch.float32,
+        torch_dtype=torch.bfloat16 if getattr(config.training, "bf16", True) else torch.float32,
     )
     model.config.use_cache = False
     print(f"✓ Model loaded", flush=True)
@@ -177,7 +179,7 @@ def main() -> None:
         max_prompt_length=getattr(config.training, "max_prompt_length", 256),
         temperature=getattr(config.training, "temperature", 0.9),
         beta=getattr(config.training, "beta", 0.04),
-        bf16=config.training.bf16,
+        bf16=getattr(config.training, "bf16", True),
         fp16=False,
         logging_steps=10,
         save_steps=config.training.checkpoint_interval,
