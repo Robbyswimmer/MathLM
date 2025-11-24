@@ -18,10 +18,10 @@ reward_weights:
 training:
   model_name: models/gemma-2-2b-it
   batch_size: 4
-  gradient_accumulation_steps: 2
+  gradient_accumulation_steps: 4
   learning_rate: 1.0e-5
-  kl_target: 0.005      # even tighter KL to discourage prompt copying
-  entropy_coef: 0.003   # lower exploration to reduce rambling/copying
+  kl_target: 0.02       # Relaxed from 0.005
+  entropy_coef: 0.01    # Increased from 0.003 to encourage exploration
   kl_coef: 0.1          # stronger KL pressure
   checkpoint_interval: 50000   # Save every 50k steps
   total_steps: 500000          # Train for 500k steps
