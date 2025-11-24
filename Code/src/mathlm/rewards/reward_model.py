@@ -29,6 +29,7 @@ class RewardBreakdown:
     reasoning_reward: float = 0.0
     exact_reward: float = 0.0
     penalty: float = 0.0
+    repetition_penalty: float = 0.0
 
     @property
     def total(self) -> float:
@@ -39,13 +40,16 @@ class RewardBreakdown:
             + self.reasoning_reward
             + self.exact_reward
             + self.penalty
+            + self.repetition_penalty
         )
 
 
 class RewardCalculator:
-    def __init__(self, weights: RewardWeights | None = None, sandbox: PythonSandbox | None = None):
+    def __init__(self, weights: RewardWeights | None = None, sandbox: PythonSandbox | None = None, repetition_penalty: float = -0.5, repetition_threshold: float = 0.6):
         self.weights = weights or RewardWeights()
         self.sandbox = sandbox or PythonSandbox()
+        self.repetition_penalty_value = repetition_penalty
+        self.repetition_threshold = repetition_threshold
 
     def evaluate(self, example: GSM8KExample, model_output: str) -> RewardBreakdown:
         breakdown = RewardBreakdown()
@@ -77,6 +81,9 @@ class RewardCalculator:
             breakdown.exact_reward = self.weights.exact
         else:
             breakdown.penalty = self.weights.penalty
+        # Repetition penalty: if model repeats prompt content too much
+        if is_repetitive(model_output, example.question, threshold=self.repetition_threshold):
+            breakdown.repetition_penalty = self.repetition_penalty_value
         return breakdown
 
 
@@ -105,3 +112,15 @@ def has_reasoning_text(output: str) -> bool:
     text_lines = [line for line in lines if not line.strip().startswith("```")]
     joined = " ".join(text_lines)
     return len(joined.split()) >= 10
+
+
+def is_repetitive(output: str, prompt: str, threshold: float = 0.6) -> bool:
+    """Simple repetition detector based on prompt overlap."""
+    prompt_tokens = prompt.lower().split()
+    output_tokens = output.lower().split()
+    if not prompt_tokens or not output_tokens:
+        return False
+    prompt_set = set(prompt_tokens)
+    overlap = sum(1 for tok in output_tokens if tok in prompt_set)
+    overlap_ratio = overlap / max(1, len(output_tokens))
+    return overlap_ratio >= threshold
