@@ -451,8 +451,8 @@ def main() -> None:
         print("✓ Gradient checkpointing disabled (multi-GPU for DDP compatibility)", flush=True)
 
     # Limit generation length to avoid OOM (aggressive limits for multi-GPU)
-    # Default to 512 to allow for full Chain-of-Thought + Code + Answer
-    gen_max = int(os.environ.get("MAX_NEW_TOKENS", 512))
+    # Default to 1024 to be safe for verbose Chain-of-Thought + Code
+    gen_max = int(os.environ.get("MAX_NEW_TOKENS", 1024))
     if hasattr(model, "generation_config"):
         model.generation_config.max_new_tokens = gen_max
         model.generation_config.min_new_tokens = 0
@@ -711,15 +711,16 @@ def main() -> None:
                     model.eval()
 
                     # Use the same generation config as training
-                    gen_kwargs = {
-                        "max_new_tokens": int(os.environ.get("MAX_NEW_TOKENS", 512)),
+                    generation_kwargs = {
+                        "max_new_tokens": 1024, # Increased from 512
                         "do_sample": True,  # Match training
                         "temperature": 0.7,  # Match training
                         "pad_token_id": tokenizer.pad_token_id or tokenizer.eos_token_id,
+                        "eos_token_id": tokenizer.eos_token_id,
                     }
 
                     with torch.no_grad():
-                        outputs = model.generate(**inputs, **gen_kwargs)
+                        outputs = model.generate(**inputs, **generation_kwargs)
                     response = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
                     # Extract just the model's response (after the prompt)
