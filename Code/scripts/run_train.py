@@ -690,11 +690,24 @@ def main() -> None:
     last_logged = {'episode': -500}
 
     original_log = trainer.log
+    collapse_detected = {'value': False}
+
     def log_with_test(logs):
         result = original_log(logs)
 
         if 'episode' in logs:
             episode = logs['episode']
+
+            # Early stopping: detect mode collapse via high KL divergence
+            if 'policy/approxkl_avg' in logs:
+                kl_avg = logs['policy/approxkl_avg']
+                if kl_avg > 80.0:  # KL exploding - model drifting too far
+                    print("\n" + "!"*60, flush=True)
+                    print(f"⚠️  WARNING: KL DIVERGENCE TOO HIGH AT EPISODE {episode}", flush=True)
+                    print(f"⚠️  KL = {kl_avg:.2f} (threshold: 80.0)", flush=True)
+                    print(f"⚠️  Model may be collapsing - consider stopping training", flush=True)
+                    print("!"*60 + "\n", flush=True)
+                    collapse_detected['value'] = True
 
             # Test model every 500 episodes
             if episode - last_logged['episode'] >= 500 and episode > 0:
