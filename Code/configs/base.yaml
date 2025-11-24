@@ -19,10 +19,10 @@ training:
   model_name: models/gemma-2-2b-it
   batch_size: 4
   gradient_accumulation_steps: 4
-  learning_rate: 1.0e-5
-  kl_target: 0.1        # Increased to prevent mode collapse
-  entropy_coef: 0.01    # Encourage exploration
-  kl_coef: 1.0          # Much stronger KL pressure to keep close to reference
-  checkpoint_interval: 5000    # Save more frequently to recover from collapse
-  total_steps: 500000          # Train for 500k steps
+  learning_rate: 5.0e-6       # Reduced from 1e-5 to slow down divergence
+  kl_target: 0.02             # Tighter target (was 0.1)
+  entropy_coef: 0.01          # Encourage exploration
+  kl_coef: 2.0                # Even stronger KL pressure (was 1.0)
+  checkpoint_interval: 10000  # Save every 10k episodes
+  total_steps: 500000         # Train for 500k steps
   bf16: true

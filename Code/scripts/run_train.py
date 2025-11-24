@@ -701,10 +701,10 @@ def main() -> None:
             # Early stopping: detect mode collapse via high KL divergence
             if 'policy/approxkl_avg' in logs:
                 kl_avg = logs['policy/approxkl_avg']
-                if kl_avg > 80.0:  # KL exploding - model drifting too far
+                if kl_avg > 20.0:  # KL exploding - model drifting too far (lowered from 80)
                     print("\n" + "!"*60, flush=True)
                     print(f"⚠️  WARNING: KL DIVERGENCE TOO HIGH AT EPISODE {episode}", flush=True)
-                    print(f"⚠️  KL = {kl_avg:.2f} (threshold: 80.0)", flush=True)
+                    print(f"⚠️  KL = {kl_avg:.2f} (threshold: 20.0)", flush=True)
                     print(f"⚠️  Model may be collapsing - consider stopping training", flush=True)
                     print("!"*60 + "\n", flush=True)
                     collapse_detected['value'] = True
