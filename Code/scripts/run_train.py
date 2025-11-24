@@ -651,38 +651,59 @@ def main() -> None:
         print(f"! Failed to wrap trainer.ref_model: {err}", flush=True)
     log_cuda_memory("Before trainer.train()")
 
-    # Add logging by patching the batched_forward_pass method
-    original_batched_forward_pass = trainer._batched_forward_pass
-    step_counter = {'count': 0, 'last_logged': -100}
+    # Store the last batch data for logging
+    trainer._last_batch_data = {'queries': None, 'responses': None, 'rewards': None}
 
-    def logged_batched_forward_pass(model, queries, responses, model_inputs, return_logits=False, response_masks=None):
-        # Call original
-        result = original_batched_forward_pass(model, queries, responses, model_inputs, return_logits, response_masks)
+    # Patch the log method to print examples
+    original_log = trainer.log
+    last_logged_episode = {'value': -100}
 
-        # Log every 100 steps
-        step_counter['count'] += 1
-        if step_counter['count'] % 100 == 0 and step_counter['count'] != step_counter['last_logged']:
-            step_counter['last_logged'] = step_counter['count']
+    def log_with_examples(logs):
+        # Call original log
+        result = original_log(logs)
 
-            print("\n" + "="*60, flush=True)
-            print(f"EXAMPLE OUTPUT AT STEP {step_counter['count']}", flush=True)
-            print("="*60, flush=True)
+        # Print example every 100 episodes
+        if 'episode' in logs:
+            episode = logs['episode']
+            if episode % 100 == 0 and episode != last_logged_episode['value']:
+                last_logged_episode['value'] = episode
 
-            # Show first example
-            try:
-                query = tokenizer.decode(queries[0], skip_special_tokens=True)
-                response = tokenizer.decode(responses[0], skip_special_tokens=True)
+                print("\n" + "="*60, flush=True)
+                print(f"EXAMPLE OUTPUT AT EPISODE {episode}", flush=True)
+                print("="*60, flush=True)
 
-                print(f"Query:\n{query[:500]}...", flush=True)
-                print(f"\nResponse:\n{response[:500]}...", flush=True)
+                # Try to print last batch data
+                batch_data = trainer._last_batch_data
+                if batch_data['queries'] is not None and batch_data['responses'] is not None:
+                    try:
+                        query = tokenizer.decode(batch_data['queries'][0], skip_special_tokens=True)
+                        response = tokenizer.decode(batch_data['responses'][0], skip_special_tokens=True)
+                        reward = batch_data['rewards'][0] if batch_data['rewards'] is not None else 'N/A'
+
+                        print(f"Query:\n{query[:400]}", flush=True)
+                        print(f"\nResponse:\n{response[:400]}", flush=True)
+                        print(f"\nReward: {reward}", flush=True)
+                    except Exception as e:
+                        print(f"Could not decode: {e}", flush=True)
+                else:
+                    print("No batch data available yet", flush=True)
+
                 print("="*60 + "\n", flush=True)
-            except Exception as e:
-                print(f"Could not decode example: {e}", flush=True)
 
         return result
 
-    trainer._batched_forward_pass = logged_batched_forward_pass
-    print("✓ Added example logging (every 100 batches)", flush=True)
+    trainer.log = log_with_examples
+
+    # Patch batched_forward_pass if it exists to capture batch data
+    if hasattr(trainer, 'batched_forward_pass'):
+        original_bfp = trainer.batched_forward_pass
+        def bfp_with_capture(queries, responses, *args, **kwargs):
+            trainer._last_batch_data['queries'] = queries
+            trainer._last_batch_data['responses'] = responses
+            return original_bfp(queries, responses, *args, **kwargs)
+        trainer.batched_forward_pass = bfp_with_capture
+
+    print("✓ Added example logging (every 100 episodes)", flush=True)
 
     trainer.train()
 
