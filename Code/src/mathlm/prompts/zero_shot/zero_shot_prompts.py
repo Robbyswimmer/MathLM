@@ -1,11 +1,14 @@
 '''Zero-shot prompt templates aligned with our reward model.'''
 
 ZERO_SHOT_PROMPT = '''
-Solve the following math problem step-by-step. Show your reasoning clearly and provide the final numerical answer.
+Solve the following math problem step-by-step. Show your reasoning clearly and end with the final answer.
 
 Problem: {problem}
 
 Solution:
+[Show your step-by-step reasoning here]
+
+Final Answer: [numerical result]
 '''
 
 FEW_SHOT_EXAMPLES = """

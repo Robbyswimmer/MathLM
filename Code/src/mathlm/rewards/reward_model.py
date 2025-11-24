@@ -117,9 +117,33 @@ class RewardCalculator:
 
 
 def extract_final_number(text: str) -> Optional[str]:
-    matches = re.findall(r"[-+]?[0-9]*\.?[0-9]+", text)
-    if matches:
-        return matches[-1]
+    """Extract the final answer from structured output.
+
+    Looks for patterns like:
+    - "Final Answer: 18"
+    - "Answer: 18"
+    - Last number in text if no structured answer found
+    """
+    # Try to find structured final answer first
+    final_answer_patterns = [
+        r"(?:final\s+)?answer[:\s]+\$?([-+]?[0-9]*\.?[0-9]+)",
+        r"the\s+answer\s+is[:\s]+\$?([-+]?[0-9]*\.?[0-9]+)",
+        r"(?:equals|=)\s*\$?([-+]?[0-9]*\.?[0-9]+)\s*$",
+    ]
+
+    text_lower = text.lower()
+    for pattern in final_answer_patterns:
+        match = re.search(pattern, text_lower, re.MULTILINE | re.IGNORECASE)
+        if match:
+            return match.group(1)
+
+    # Fallback: get last number only if we have reasoning indicators
+    # This prevents rewarding models that just repeat the question
+    if any(indicator in text_lower for indicator in ["solution:", "step", "calculate", "therefore"]):
+        matches = re.findall(r"[-+]?[0-9]*\.?[0-9]+", text)
+        if matches:
+            return matches[-1]
+
     return None
 
 
@@ -136,11 +160,35 @@ def answers_match(predicted: str, ground_truth: str) -> bool:
 
 
 def has_reasoning_text(output: str) -> bool:
+    """Check if output contains actual reasoning, not just repeated question text.
+
+    Looks for reasoning indicators like:
+    - Math operations/numbers
+    - Calculation keywords
+    - Step-by-step structure
+    - Sufficient length (10+ words)
+    """
     stripped = output.strip()
     lines = [line for line in stripped.splitlines() if line.strip()]
     text_lines = [line for line in lines if not line.strip().startswith("```")]
-    joined = " ".join(text_lines)
-    return len(joined.split()) >= 10
+    joined = " ".join(text_lines).lower()
+
+    # Must have minimum length
+    if len(joined.split()) < 10:
+        return False
+
+    # Must contain reasoning indicators (not just question text)
+    reasoning_indicators = [
+        "solution", "step", "calculate", "first", "then", "therefore",
+        "so", "thus", "next", "now", "=", "+", "-", "*", "/",
+        "total", "remaining", "left", "sells", "makes", "earns"
+    ]
+
+    # Count how many indicators are present
+    indicator_count = sum(1 for indicator in reasoning_indicators if indicator in joined)
+
+    # Require at least 2 reasoning indicators to avoid rewarding question repetition
+    return indicator_count >= 2
 
 
 def is_repetitive(output: str, prompt: str, threshold: float = 0.6) -> bool:
