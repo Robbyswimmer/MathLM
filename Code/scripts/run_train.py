@@ -665,6 +665,12 @@ def main() -> None:
         # Print example every 100 episodes
         if 'episode' in logs:
             episode = logs['episode']
+            # Also log key metrics at every episode
+            if episode % 32 == 0:  # Log every batch
+                score = logs.get('objective/scores', 'N/A')
+                reward = logs.get('objective/rlhf_reward', 'N/A')
+                print(f"[Episode {episode}] Score: {score}, Reward: {reward}", flush=True)
+
             if episode % 100 == 0 and episode != last_logged_episode['value']:
                 last_logged_episode['value'] = episode
 
@@ -692,17 +698,52 @@ def main() -> None:
 
         return result
 
+    # SIMPLE: Just capture and print the actual training batch data
+    original_compute_rewards = trainer.compute_rewards
+
+    def compute_rewards_with_logging(scores, logprobs, ref_logprobs, masks, values=None):
+        # Call original
+        rewards = original_compute_rewards(scores, logprobs, ref_logprobs, masks, values)
+
+        # Get episode count
+        current_episode = getattr(trainer, 'current_episode', 0)
+
+        # Print every 100 episodes
+        if current_episode % 100 == 0 and current_episode > 0:
+            print("\n" + "="*60, flush=True)
+            print(f"TRAINING EXAMPLE AT EPISODE {current_episode}", flush=True)
+            print("="*60, flush=True)
+            print(f"Score: {scores[0].item() if len(scores) > 0 else 'N/A'}", flush=True)
+            print(f"Reward: {rewards[0].mean().item() if len(rewards) > 0 else 'N/A'}", flush=True)
+
+            # Try to get the actual text from last batch
+            if hasattr(trainer, '_last_batch_data'):
+                bd = trainer._last_batch_data
+                if bd['queries'] is not None and bd['responses'] is not None:
+                    try:
+                        q = tokenizer.decode(bd['queries'][0], skip_special_tokens=True)
+                        r = tokenizer.decode(bd['responses'][0], skip_special_tokens=True)
+                        print(f"\nQuery:\n{q}\n", flush=True)
+                        print(f"Response:\n{r}", flush=True)
+                    except:
+                        pass
+            print("="*60 + "\n", flush=True)
+
+        return rewards
+
+    trainer.compute_rewards = compute_rewards_with_logging
+
+    # Also capture the batch when it's created
+    if hasattr(trainer, 'generate'):
+        original_generate = trainer.generate
+        def generate_with_capture(query_tensor, **kwargs):
+            result = original_generate(query_tensor, **kwargs)
+            trainer._last_batch_data['queries'] = query_tensor
+            trainer._last_batch_data['responses'] = result
+            return result
+        trainer.generate = generate_with_capture
+
     trainer.log = log_with_examples
-
-    # Patch batched_forward_pass if it exists to capture batch data
-    if hasattr(trainer, 'batched_forward_pass'):
-        original_bfp = trainer.batched_forward_pass
-        def bfp_with_capture(queries, responses, *args, **kwargs):
-            trainer._last_batch_data['queries'] = queries
-            trainer._last_batch_data['responses'] = responses
-            return original_bfp(queries, responses, *args, **kwargs)
-        trainer.batched_forward_pass = bfp_with_capture
-
     print("✓ Added example logging (every 100 episodes)", flush=True)
 
     trainer.train()
