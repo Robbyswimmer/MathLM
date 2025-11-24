@@ -9,6 +9,11 @@ from .reward_model import (
     extract_final_number,
     has_reasoning_text,
 )
+from .grpo_rewards import (
+    math_correctness_reward,
+    format_quality_reward,
+    combined_math_reward,
+)
 
 __all__ = [
     "PythonSandbox",
@@ -20,4 +25,7 @@ __all__ = [
     "answers_match",
     "extract_final_number",
     "has_reasoning_text",
+    "math_correctness_reward",
+    "format_quality_reward",
+    "combined_math_reward",
 ]
