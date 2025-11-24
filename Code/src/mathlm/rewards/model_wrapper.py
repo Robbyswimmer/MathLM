@@ -62,6 +62,12 @@ class MathRewardModel(nn.Module):
             question_part = question_part.replace("<bos>", "").replace("<eos>", "").replace("<pad>", "").strip()
             response_part = response_part.replace("<eos>", "").replace("<pad>", "").strip()
 
+            # DEBUG: Print first few examples to verify splitting
+            if len(rewards) < 1:
+                print(f"\n[REWARD DEBUG] Full text: {text[:100]}...", flush=True)
+                print(f"[REWARD DEBUG] Question: {question_part[:50]}...", flush=True)
+                print(f"[REWARD DEBUG] Response: {response_part[:50]}...", flush=True)
+
             breakdown = self.reward_calc.evaluate(question_part, response_part)
             rewards.append(breakdown.total)
             

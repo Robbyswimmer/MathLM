@@ -675,7 +675,15 @@ def main() -> None:
     import time
 
     test_problem = "Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?"
-    test_prompt = get_zero_shot_prompt(template="default", problem=test_problem)
+    test_prompt_raw = get_zero_shot_prompt(template="default", problem=test_problem)
+    
+    # Apply chat template to test prompt
+    if hasattr(tokenizer, "apply_chat_template"):
+        messages = [{"role": "user", "content": test_prompt_raw}]
+        test_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    else:
+        test_prompt = test_prompt_raw
+        
     last_logged = {'episode': -500}
 
     original_log = trainer.log
