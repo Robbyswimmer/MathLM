@@ -223,8 +223,12 @@ def main() -> None:
 
     original_log = trainer.log
 
-    def log_with_test(logs):
-        result = original_log(logs)
+    def log_with_test(logs, start_time=None):
+        # Handle both old and new trainer.log signatures
+        if start_time is not None:
+            result = original_log(logs, start_time)
+        else:
+            result = original_log(logs)
 
         if 'step' in logs:
             step = logs['step']
