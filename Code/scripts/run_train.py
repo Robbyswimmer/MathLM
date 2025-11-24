@@ -15,6 +15,7 @@ from mathlm.data import (
     load_raw_split,
     save_examples,
 )
+from mathlm.prompts.zero_shot import get_zero_shot_prompt
 from mathlm.rewards import RewardCalculator, RewardWeights
 from mathlm.training import JSONLLogger, MathLMPPORunner, PromptDataset
 import os
