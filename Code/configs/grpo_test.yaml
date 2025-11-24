@@ -1,0 +1,8 @@
+# GRPO test configuration - short run to verify stability
+include: grpo_base.yaml
+curriculum:
+  split: train
+  max_problems: 100  # Only use 100 problems for quick test
+training:
+  total_steps: 100   # Only run 100 steps to verify
+  checkpoint_interval: 50

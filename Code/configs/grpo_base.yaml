@@ -1,0 +1,27 @@
+# GRPO configuration for MathLM experiments
+data:
+  split: train
+  parquet_file: data/gsm8k_raw/main/train-00000-of-00001.parquet
+  source: parquet
+prompting:
+  shots: 0
+  template: default
+reward_weights:
+  # These are used in the reward function logic, not directly by GRPO
+  extraction: 0.5
+  reasoning: 0.5
+  exact: 4.0
+  penalty: -0.5
+training:
+  model_name: models/gemma-2-2b-it
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 5.0e-6          # Conservative learning rate for stability
+  beta: 0.04                     # KL penalty coefficient (GRPO standard)
+  num_generations: 8             # Generate 8 completions per prompt (key GRPO parameter)
+  max_completion_length: 512     # Max tokens for model response
+  max_prompt_length: 256         # Max tokens for prompt
+  temperature: 0.9               # Sampling temperature for diverse generations
+  checkpoint_interval: 10000     # Save every 10k steps
+  total_steps: 500000            # Total training steps
+  bf16: true
