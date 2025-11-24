@@ -651,100 +651,51 @@ def main() -> None:
         print(f"! Failed to wrap trainer.ref_model: {err}", flush=True)
     log_cuda_memory("Before trainer.train()")
 
-    # Store the last batch data for logging
-    trainer._last_batch_data = {'queries': None, 'responses': None, 'rewards': None}
+    # Simple callback: test model on fixed problem every N episodes
+    import threading
+    import time
 
-    # Patch the log method to print examples
+    test_problem = "Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?"
+    test_prompt = get_zero_shot_prompt(template="default", problem=test_problem)
+    last_logged = {'episode': -500}
+
     original_log = trainer.log
-    last_logged_episode = {'value': -100}
-
-    def log_with_examples(logs):
-        # Call original log
+    def log_with_test(logs):
         result = original_log(logs)
 
-        # Print example every 100 episodes
         if 'episode' in logs:
             episode = logs['episode']
-            # Also log key metrics at every episode
-            if episode % 32 == 0:  # Log every batch
-                score = logs.get('objective/scores', 'N/A')
-                reward = logs.get('objective/rlhf_reward', 'N/A')
-                print(f"[Episode {episode}] Score: {score}, Reward: {reward}", flush=True)
 
-            if episode % 100 == 0 and episode != last_logged_episode['value']:
-                last_logged_episode['value'] = episode
+            # Test model every 500 episodes
+            if episode - last_logged['episode'] >= 500 and episode > 0:
+                last_logged['episode'] = episode
 
                 print("\n" + "="*60, flush=True)
-                print(f"EXAMPLE OUTPUT AT EPISODE {episode}", flush=True)
+                print(f"MODEL TEST AT EPISODE {episode}", flush=True)
                 print("="*60, flush=True)
 
-                # Try to print last batch data
-                batch_data = trainer._last_batch_data
-                if batch_data['queries'] is not None and batch_data['responses'] is not None:
-                    try:
-                        query = tokenizer.decode(batch_data['queries'][0], skip_special_tokens=True)
-                        response = tokenizer.decode(batch_data['responses'][0], skip_special_tokens=True)
-                        reward = batch_data['rewards'][0] if batch_data['rewards'] is not None else 'N/A'
+                try:
+                    inputs = tokenizer(test_prompt, return_tensors="pt").to(model.device)
+                    model.eval()
+                    with torch.no_grad():
+                        outputs = model.generate(**inputs, max_new_tokens=128, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+                    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                    response_text = response[len(test_prompt):].strip()
+                    model.train()
 
-                        print(f"Query:\n{query[:400]}", flush=True)
-                        print(f"\nResponse:\n{response[:400]}", flush=True)
-                        print(f"\nReward: {reward}", flush=True)
-                    except Exception as e:
-                        print(f"Could not decode: {e}", flush=True)
-                else:
-                    print("No batch data available yet", flush=True)
+                    print(f"Problem: Janet's ducks problem...", flush=True)
+                    print(f"\nModel says:\n{response_text}", flush=True)
+                    print(f"\n(Expected: 18)", flush=True)
+                except Exception as e:
+                    print(f"Test failed: {e}", flush=True)
+                    model.train()
 
                 print("="*60 + "\n", flush=True)
 
         return result
 
-    # SIMPLE: Just capture and print the actual training batch data
-    original_compute_rewards = trainer.compute_rewards
-
-    def compute_rewards_with_logging(scores, logprobs, ref_logprobs, masks, values=None):
-        # Call original
-        rewards = original_compute_rewards(scores, logprobs, ref_logprobs, masks, values)
-
-        # Get episode count
-        current_episode = getattr(trainer, 'current_episode', 0)
-
-        # Print every 100 episodes
-        if current_episode % 100 == 0 and current_episode > 0:
-            print("\n" + "="*60, flush=True)
-            print(f"TRAINING EXAMPLE AT EPISODE {current_episode}", flush=True)
-            print("="*60, flush=True)
-            print(f"Score: {scores[0].item() if len(scores) > 0 else 'N/A'}", flush=True)
-            print(f"Reward: {rewards[0].mean().item() if len(rewards) > 0 else 'N/A'}", flush=True)
-
-            # Try to get the actual text from last batch
-            if hasattr(trainer, '_last_batch_data'):
-                bd = trainer._last_batch_data
-                if bd['queries'] is not None and bd['responses'] is not None:
-                    try:
-                        q = tokenizer.decode(bd['queries'][0], skip_special_tokens=True)
-                        r = tokenizer.decode(bd['responses'][0], skip_special_tokens=True)
-                        print(f"\nQuery:\n{q}\n", flush=True)
-                        print(f"Response:\n{r}", flush=True)
-                    except:
-                        pass
-            print("="*60 + "\n", flush=True)
-
-        return rewards
-
-    trainer.compute_rewards = compute_rewards_with_logging
-
-    # Also capture the batch when it's created
-    if hasattr(trainer, 'generate'):
-        original_generate = trainer.generate
-        def generate_with_capture(query_tensor, **kwargs):
-            result = original_generate(query_tensor, **kwargs)
-            trainer._last_batch_data['queries'] = query_tensor
-            trainer._last_batch_data['responses'] = result
-            return result
-        trainer.generate = generate_with_capture
-
-    trainer.log = log_with_examples
-    print("✓ Added example logging (every 100 episodes)", flush=True)
+    trainer.log = log_with_test
+    print("✓ Will test model on example problem every 500 episodes", flush=True)
 
     trainer.train()
 
