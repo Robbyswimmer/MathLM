@@ -55,9 +55,17 @@ def main():
     # Load model and tokenizer
     print("\nLoading model and tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(str(args.checkpoint))
-    model = AutoModelForCausalLM.from_pretrained(str(args.checkpoint))
+
+    # Load model and move to GPU
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Using device: {device}", flush=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        str(args.checkpoint),
+        torch_dtype=torch.bfloat16 if device == "cuda" else torch.float32,
+        device_map="auto" if device == "cuda" else None,
+    )
     model.eval()
-    print("✓ Model loaded")
+    print(f"✓ Model loaded on {device}")
 
     # Load test data
     print(f"\nLoading {args.split} data...")
@@ -96,15 +104,25 @@ def main():
         # Generate prompts for batch
         prompts = [get_zero_shot_prompt(template="default", problem=ex.question) for ex in batch_examples]
 
+        if batch_start == 0:
+            print(f"  Tokenizing first batch...", flush=True)
+
         # Batch generate
         inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, max_length=256)
-        inputs = {k: v.to(model.device) for k, v in inputs.items()}
+
+        if batch_start == 0:
+            print(f"  Generating responses...", flush=True)
+
         outputs = model.generate(
             **inputs,
             max_new_tokens=128,
             do_sample=False,
             pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
         )
+
+        if batch_start == 0:
+            print(f"  Decoding responses...", flush=True)
+
         responses = tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
         # Process batch results
