@@ -17,10 +17,7 @@ Format your response as follows:
 # Python code here to solve the problem
 # Use basic arithmetic operations only
 # Calculate and print the final answer
-```
-<final answer - the numerical result>
-
-Problem: If I have 3 apples and buy 2 more, how many do I have?
+Problem: {problem}
 '''
 
 FEW_SHOT_EXAMPLES = """
