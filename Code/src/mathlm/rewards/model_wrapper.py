@@ -35,40 +35,48 @@ class MathRewardModel(nn.Module):
         texts = self.tokenizer.batch_decode(input_ids, skip_special_tokens=False)
         
         rewards = []
-        for text in texts:
-            # Try splitting by Gemma's chat separator
-            # <start_of_turn>model
-            parts = text.split("<start_of_turn>model")
-            if len(parts) >= 2:
-                question_part = parts[0].strip()
-                response_part = "".join(parts[1:]).strip()
-            # Fallback for other models or if separator is missing (e.g. truncated)
-            elif "Answer:" in text:
-                parts = text.split("Answer:")
-                question_part = "Answer:".join(parts[:-1]).strip()
-                response_part = parts[-1].strip()
-            else:
-                # Last resort: assume the whole thing is the question (will yield 0 reward)
-                # or try to find the last "Problem:" if it exists
-                if "Problem:" in text:
-                     parts = text.rsplit("Problem:", 1)
+        for i, text in enumerate(texts):
+            # Try multiple potential separators for Gemma and other models
+            separators = [
+                "<start_of_turn>model",
+                "<start_of_turn> model",  # sometimes tokenizer adds a space
+                "<|assistant|>",          # other models
+                "Answer:",                # fallback
+            ]
+            
+            question_part = text
+            response_part = ""
+            
+            for sep in separators:
+                if sep in text:
+                    parts = text.split(sep)
+                    # Take the last part as response (in case of multiple turns, though we usually have 1)
+                    # Actually, for PPO, we usually have [Prompt] [Response]. 
+                    # The prompt ends with the separator.
+                    question_part = sep.join(parts[:-1]).strip()
+                    response_part = parts[-1].strip()
+                    break
+            
+            # Fallback: if no separator found, check for "Problem:" structure
+            if response_part == "" and "Problem:" in text:
+                 parts = text.rsplit("Problem:", 1)
+                 if len(parts) > 1:
                      question_part = parts[0] + "Problem:" + parts[1].split("\n", 1)[0]
                      response_part = parts[1].split("\n", 1)[-1].strip()
-                else:
-                    question_part = text
-                    response_part = ""
             
-            # Clean up special tokens from the parts for the reward calculator
-            question_part = question_part.replace("<bos>", "").replace("<eos>", "").replace("<pad>", "").strip()
-            response_part = response_part.replace("<eos>", "").replace("<pad>", "").strip()
+            # Clean up special tokens
+            clean_q = question_part.replace("<bos>", "").replace("<eos>", "").replace("<pad>", "").replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
+            clean_r = response_part.replace("<eos>", "").replace("<pad>", "").replace("<end_of_turn>", "").strip()
 
-            # DEBUG: Print first few examples to verify splitting
-            if len(rewards) < 1:
-                print(f"\n[REWARD DEBUG] Full text: {text[:100]}...", flush=True)
-                print(f"[REWARD DEBUG] Question: {question_part[:50]}...", flush=True)
-                print(f"[REWARD DEBUG] Response: {response_part[:50]}...", flush=True)
+            # DEBUG: Print full text for the first example of the batch to diagnose splitting
+            if i == 0 and len(rewards) == 0: # Print only once per batch
+                import sys
+                print(f"\n[REWARD DEBUG] Full text (repr): {repr(text)}", file=sys.stderr, flush=True)
+                print(f"[REWARD DEBUG] Separator used: {sep if response_part else 'NONE'}", file=sys.stderr, flush=True)
+                print(f"[REWARD DEBUG] Question (clean): {clean_q[:50]}...", file=sys.stderr, flush=True)
+                print(f"[REWARD DEBUG] Response (clean): {clean_r[:100]}...", file=sys.stderr, flush=True)
 
-            breakdown = self.reward_calc.evaluate(question_part, response_part)
+            breakdown = self.reward_calc.evaluate(clean_q, clean_r)
             rewards.append(breakdown.total)
             
         # TRL expects a tensor of shape [batch_size, seq_len] (or [batch_size, seq_len, 1])
