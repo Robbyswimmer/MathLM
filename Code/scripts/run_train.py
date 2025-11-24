@@ -484,6 +484,9 @@ def main() -> None:
         if hasattr(tokenizer, "apply_chat_template"):
             messages = [{"role": "user", "content": ex.prompt}]
             prompt_text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            # Ensure the model turn separator is present for splitting
+            if "<start_of_turn>model" not in prompt_text:
+                prompt_text += "<start_of_turn>model\n"
         else:
             prompt_text = ex.prompt
             
