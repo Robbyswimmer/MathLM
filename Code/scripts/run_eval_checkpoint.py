@@ -62,10 +62,10 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         str(args.checkpoint),
         torch_dtype=torch.bfloat16 if device == "cuda" else torch.float32,
-        device_map="auto" if device == "cuda" else None,
     )
+    model = model.to(device)
     model.eval()
-    print(f"✓ Model loaded on {device}")
+    print(f"✓ Model loaded on {device}", flush=True)
 
     # Load test data
     print(f"\nLoading {args.split} data...")

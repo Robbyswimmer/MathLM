@@ -11,12 +11,12 @@ prompting:
   shots: 0
   template: default
 reward_weights:
-  syntax: 0.1
-  execution: 0.2
-  extraction: 0.3
-  reasoning: 0.5
-  exact: 2.0
-  penalty: -0.5
+  syntax: 0.0  # Removed - focus on correctness
+  execution: 0.0  # Removed - focus on correctness
+  extraction: 0.1  # Minimal - just to encourage number extraction
+  reasoning: 0.2  # Minimal - encourage showing work
+  exact: 10.0  # Massively increased - primary objective
+  penalty: -2.0  # Increased penalty for wrong answers
 training:
   model_name: models/gemma-2-2b-it
   batch_size: 2

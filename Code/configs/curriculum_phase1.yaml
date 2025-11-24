@@ -1,7 +1,7 @@
-# Phase 1: easiest 1k GSM8k problems
+# Phase 1: Full GSM8k training set with stronger reward signal
 include: base.yaml
 curriculum:
-  split: easy
-  max_problems: 1000
+  split: train
+  max_problems: null  # Use all training examples (~7.5k)
 training:
-  total_steps: 10000  # Reduced from 100k for reasonable training time (~24 hours)
+  total_steps: 15000  # Increased for full dataset

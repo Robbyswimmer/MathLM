@@ -651,6 +651,48 @@ def main() -> None:
         print(f"! Failed to wrap trainer.ref_model: {err}", flush=True)
     log_cuda_memory("Before trainer.train()")
 
+    # Add callback to log example outputs during training
+    class ExampleLogger:
+        def __init__(self, tokenizer, reward_calc, log_every=100):
+            self.tokenizer = tokenizer
+            self.reward_calc = reward_calc
+            self.log_every = log_every
+            self.last_logged = -log_every
+
+        def __call__(self, step, query_tensors, response_tensors, rewards):
+            if step - self.last_logged < self.log_every:
+                return
+            self.last_logged = step
+
+            print("\n" + "="*60, flush=True)
+            print(f"EXAMPLE OUTPUT AT STEP {step}", flush=True)
+            print("="*60, flush=True)
+
+            # Show first example from batch
+            query = self.tokenizer.decode(query_tensors[0], skip_special_tokens=True)
+            response = self.tokenizer.decode(response_tensors[0], skip_special_tokens=True)
+            reward = rewards[0].item() if hasattr(rewards[0], 'item') else rewards[0]
+
+            print(f"Query:\n{query}", flush=True)
+            print(f"\nResponse:\n{response}", flush=True)
+            print(f"\nReward: {reward:.3f}", flush=True)
+            print("="*60 + "\n", flush=True)
+
+    # Monkey-patch the step method to add logging
+    example_logger = ExampleLogger(tokenizer, reward_calc, log_every=100)
+    original_step = trainer.step
+
+    def step_with_logging(queries, responses, rewards, *args, **kwargs):
+        if hasattr(trainer, 'current_step'):
+            example_logger(trainer.current_step, queries, responses, rewards)
+        else:
+            # Fallback: use episode count
+            example_logger(getattr(trainer, 'current_episode', 0), queries, responses, rewards)
+        return original_step(queries, responses, rewards, *args, **kwargs)
+
+    trainer.step = step_with_logging
+    print("✓ Added example logging callback (every 100 steps)", flush=True)
+
     trainer.train()
 
     print("\n" + "="*60, flush=True)
