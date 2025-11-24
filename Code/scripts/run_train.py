@@ -651,64 +651,38 @@ def main() -> None:
         print(f"! Failed to wrap trainer.ref_model: {err}", flush=True)
     log_cuda_memory("Before trainer.train()")
 
-    # Add logging via callback that hooks into the log method
-    class ExampleLoggingCallback:
-        def __init__(self, tokenizer, log_every=100):
-            self.tokenizer = tokenizer
-            self.log_every = log_every
-            self.step_count = 0
-            self.last_batch = None
+    # Add logging by patching the batched_forward_pass method
+    original_batched_forward_pass = trainer._batched_forward_pass
+    step_counter = {'count': 0, 'last_logged': -100}
 
-        def on_batch_end(self, query_tensors, response_tensors, rewards):
-            # Store last batch for logging
-            self.last_batch = (query_tensors, response_tensors, rewards)
+    def logged_batched_forward_pass(model, queries, responses, model_inputs, return_logits=False, response_masks=None):
+        # Call original
+        result = original_batched_forward_pass(model, queries, responses, model_inputs, return_logits, response_masks)
 
-        def on_log(self, logs):
-            # Check if we should log examples
-            if 'episode' in logs:
-                step = logs['episode']
-                if step % self.log_every == 0 and self.last_batch is not None:
-                    self.log_example(step, *self.last_batch)
+        # Log every 100 steps
+        step_counter['count'] += 1
+        if step_counter['count'] % 100 == 0 and step_counter['count'] != step_counter['last_logged']:
+            step_counter['last_logged'] = step_counter['count']
 
-        def log_example(self, step, query_tensors, response_tensors, rewards):
             print("\n" + "="*60, flush=True)
-            print(f"EXAMPLE OUTPUT AT STEP {step}", flush=True)
+            print(f"EXAMPLE OUTPUT AT STEP {step_counter['count']}", flush=True)
             print("="*60, flush=True)
 
-            # Show first example from batch
-            query = self.tokenizer.decode(query_tensors[0], skip_special_tokens=True)
-            response = self.tokenizer.decode(response_tensors[0], skip_special_tokens=True)
-            reward = rewards[0].item() if hasattr(rewards[0], 'item') else rewards[0]
+            # Show first example
+            try:
+                query = tokenizer.decode(queries[0], skip_special_tokens=True)
+                response = tokenizer.decode(responses[0], skip_special_tokens=True)
 
-            print(f"Query:\n{query}", flush=True)
-            print(f"\nResponse:\n{response}", flush=True)
-            print(f"\nReward: {reward:.3f}", flush=True)
-            print("="*60 + "\n", flush=True)
+                print(f"Query:\n{query[:500]}...", flush=True)
+                print(f"\nResponse:\n{response[:500]}...", flush=True)
+                print("="*60 + "\n", flush=True)
+            except Exception as e:
+                print(f"Could not decode example: {e}", flush=True)
 
-    example_callback = ExampleLoggingCallback(tokenizer, log_every=100)
+        return result
 
-    # Monkey-patch trainer methods to call our callback
-    original_batched_forward_pass = trainer._batched_forward_pass if hasattr(trainer, '_batched_forward_pass') else None
-    original_log = trainer.log
-
-    def log_with_callback(logs):
-        example_callback.on_log(logs)
-        return original_log(logs)
-
-    trainer.log = log_with_callback
-
-    # Store batch data after generation
-    if hasattr(trainer, 'generate'):
-        original_generate = trainer.generate
-        def generate_with_logging(*args, **kwargs):
-            result = original_generate(*args, **kwargs)
-            # Store the generated data
-            if len(args) >= 3:
-                example_callback.on_batch_end(args[0], result, args[2] if len(args) > 2 else None)
-            return result
-        trainer.generate = generate_with_logging
-
-    print("✓ Added example logging callback (every 100 steps)", flush=True)
+    trainer._batched_forward_pass = logged_batched_forward_pass
+    print("✓ Added example logging (every 100 batches)", flush=True)
 
     trainer.train()
 
