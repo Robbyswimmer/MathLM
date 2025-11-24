@@ -676,7 +676,9 @@ def main() -> None:
                 print("="*60, flush=True)
 
                 try:
-                    inputs = tokenizer(test_prompt, return_tensors="pt").to(model.device)
+                    # Get device from model parameters
+                    device = next(model.parameters()).device
+                    inputs = tokenizer(test_prompt, return_tensors="pt").to(device)
                     model.eval()
                     with torch.no_grad():
                         outputs = model.generate(**inputs, max_new_tokens=128, do_sample=False, pad_token_id=tokenizer.eos_token_id)
@@ -689,6 +691,8 @@ def main() -> None:
                     print(f"\n(Expected: 18)", flush=True)
                 except Exception as e:
                     print(f"Test failed: {e}", flush=True)
+                    import traceback
+                    traceback.print_exc()
                     model.train()
 
                 print("="*60 + "\n", flush=True)
