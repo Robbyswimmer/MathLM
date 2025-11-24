@@ -5,18 +5,22 @@ Solve the following math problem step-by-step.
 
 Requirements:
 1. Show your reasoning clearly by explaining each step.
-2. Write lightweight Python code to compute the solution (no imports allowed).
-3. DO NOT define functions. Just write the code to calculate and print the answer directly.
-4. Provide the final numerical answer at the end.
+2. Provide the final numerical answer at the end.
 
 Format your response as follows:
 <step-by-step reasoning - describe the problem and your approach>
-<lightweight Python code - implement the solution>
+<final answer - the numerical result>
 
-```python
-# Python code here to solve the problem
-# Use basic arithmetic operations only
-# Calculate and print the final answer
+Problem: If I have 3 apples and buy 2 more, how many do I have?
+
+<step-by-step reasoning>
+I start with 3 apples.
+I buy 2 more apples.
+Total apples = 3 + 2 = 5.
+
+<final answer>
+5
+
 Problem: {problem}
 '''
 
@@ -63,12 +67,6 @@ print(distance)
 120
 """
 
-def get_zero_shot_prompt(template:str = 'default', problem:str = '') -> str:
-    '''Returns the prompt based on the specified template.'''
-    if template == 'default':
-        # Prepend few-shot examples to the main prompt
-        full_prompt = ZERO_SHOT_PROMPT.replace("Problem: {problem}", FEW_SHOT_EXAMPLES + "\nProblem: {problem}")
-        return full_prompt.format(problem=problem)
 EXPLICIT_ZERO_SHOT_PROMPT = '''
 Solve this math problem by following these steps:
 

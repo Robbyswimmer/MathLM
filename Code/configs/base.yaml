@@ -9,12 +9,12 @@ prompting:
   shots: 0
   template: default
 reward_weights:
-  syntax: 0.2         # reward well-formed Python blocks
-  execution: 0.2      # reward code that runs without errors
-  extraction: 0.3     # reward extracting a numeric answer
-  reasoning: 0.5      # reward showing reasoning steps
-  exact: 2.0          # reward exact match on final answer
-  penalty: -0.5       # penalize incorrect answers
+  syntax: 0.0         # No code, no syntax reward
+  execution: 0.0      # No code, no execution reward
+  extraction: 0.5     # Increased weight for finding an answer
+  reasoning: 0.5      # Reward showing reasoning steps
+  exact: 2.0          # Reward exact match on final answer
+  penalty: -0.5       # Penalize incorrect answers
 training:
   model_name: models/gemma-2-2b-it
   batch_size: 4

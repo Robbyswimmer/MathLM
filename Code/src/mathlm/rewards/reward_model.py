@@ -13,12 +13,12 @@ from .sandbox import PythonSandbox, SandboxResult, extract_python_blocks
 
 @dataclass
 class RewardWeights:
-    syntax: float = 0.1
-    execution: float = 0.2
-    extraction: float = 0.3
-    reasoning: float = 0.5
-    exact: float = 2.0
-    penalty: float = -0.5
+    syntax: float = 0.0      # No code, no syntax reward
+    execution: float = 0.0   # No code, no execution reward
+    extraction: float = 0.5  # Increased weight for finding an answer
+    reasoning: float = 0.5   # Reward showing reasoning steps
+    exact: float = 2.0       # Reward exact match on final answer
+    penalty: float = -0.5    # Penalize incorrect answers
 
 
 @dataclass
