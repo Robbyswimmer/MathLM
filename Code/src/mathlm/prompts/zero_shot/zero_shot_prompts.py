@@ -17,8 +17,6 @@ Format your response as follows:
 # Python code here to solve the problem
 # Use basic arithmetic operations only
 # Calculate and print the final answer
-result = 3 + 5  # example calculation
-print(result)
 ```
 <final answer - the numerical result>
 
@@ -49,8 +47,6 @@ Format your response as follows:
 # Python code here to solve the problem
 # Use basic arithmetic operations only
 # Calculate and print the final answer
-result = 3 + 5  # example calculation
-print(result)
 ```
 
 <final answer - the numerical result>
