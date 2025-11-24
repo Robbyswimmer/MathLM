@@ -20,7 +20,7 @@ training:
   batch_size: 4
   gradient_accumulation_steps: 2
   learning_rate: 1.0e-5
-  kl_target: 0.01       # tighter KL to discourage prompt copying
+  kl_target: 0.005      # even tighter KL to discourage prompt copying
   entropy_coef: 0.005   # lower exploration to reduce rambling/copying
   checkpoint_interval: 50000   # Save every 50k steps
   total_steps: 500000          # Train for 500k steps

@@ -452,10 +452,12 @@ def main() -> None:
     gen_max = int(os.environ.get("MAX_NEW_TOKENS", 32))
     if hasattr(model, "generation_config"):
         model.generation_config.max_new_tokens = gen_max
-        model.generation_config.min_new_tokens = 1
+        model.generation_config.min_new_tokens = 0
+        model.generation_config.temperature = 0.5
     if hasattr(ref_model, "generation_config"):
         ref_model.generation_config.max_new_tokens = gen_max
-        ref_model.generation_config.min_new_tokens = 1
+        ref_model.generation_config.min_new_tokens = 0
+        ref_model.generation_config.temperature = 0.5
         ref_model.is_gradient_checkpointing = False
     print(f"✓ Generation max_new_tokens set to {gen_max}", flush=True)
 

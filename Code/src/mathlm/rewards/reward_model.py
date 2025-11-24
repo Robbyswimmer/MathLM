@@ -45,7 +45,7 @@ class RewardBreakdown:
 
 
 class RewardCalculator:
-    def __init__(self, weights: RewardWeights | None = None, sandbox: PythonSandbox | None = None, repetition_penalty: float = -0.5, repetition_threshold: float = 0.6):
+    def __init__(self, weights: RewardWeights | None = None, sandbox: PythonSandbox | None = None, repetition_penalty: float = -1.0, repetition_threshold: float = 0.5):
         self.weights = weights or RewardWeights()
         self.sandbox = sandbox or PythonSandbox()
         self.repetition_penalty_value = repetition_penalty
