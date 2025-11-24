@@ -651,19 +651,26 @@ def main() -> None:
         print(f"! Failed to wrap trainer.ref_model: {err}", flush=True)
     log_cuda_memory("Before trainer.train()")
 
-    # Add callback to log example outputs during training
-    class ExampleLogger:
-        def __init__(self, tokenizer, reward_calc, log_every=100):
+    # Add logging via callback that hooks into the log method
+    class ExampleLoggingCallback:
+        def __init__(self, tokenizer, log_every=100):
             self.tokenizer = tokenizer
-            self.reward_calc = reward_calc
             self.log_every = log_every
-            self.last_logged = -log_every
+            self.step_count = 0
+            self.last_batch = None
 
-        def __call__(self, step, query_tensors, response_tensors, rewards):
-            if step - self.last_logged < self.log_every:
-                return
-            self.last_logged = step
+        def on_batch_end(self, query_tensors, response_tensors, rewards):
+            # Store last batch for logging
+            self.last_batch = (query_tensors, response_tensors, rewards)
 
+        def on_log(self, logs):
+            # Check if we should log examples
+            if 'episode' in logs:
+                step = logs['episode']
+                if step % self.log_every == 0 and self.last_batch is not None:
+                    self.log_example(step, *self.last_batch)
+
+        def log_example(self, step, query_tensors, response_tensors, rewards):
             print("\n" + "="*60, flush=True)
             print(f"EXAMPLE OUTPUT AT STEP {step}", flush=True)
             print("="*60, flush=True)
@@ -678,19 +685,29 @@ def main() -> None:
             print(f"\nReward: {reward:.3f}", flush=True)
             print("="*60 + "\n", flush=True)
 
-    # Monkey-patch the step method to add logging
-    example_logger = ExampleLogger(tokenizer, reward_calc, log_every=100)
-    original_step = trainer.step
+    example_callback = ExampleLoggingCallback(tokenizer, log_every=100)
 
-    def step_with_logging(queries, responses, rewards, *args, **kwargs):
-        if hasattr(trainer, 'current_step'):
-            example_logger(trainer.current_step, queries, responses, rewards)
-        else:
-            # Fallback: use episode count
-            example_logger(getattr(trainer, 'current_episode', 0), queries, responses, rewards)
-        return original_step(queries, responses, rewards, *args, **kwargs)
+    # Monkey-patch trainer methods to call our callback
+    original_batched_forward_pass = trainer._batched_forward_pass if hasattr(trainer, '_batched_forward_pass') else None
+    original_log = trainer.log
 
-    trainer.step = step_with_logging
+    def log_with_callback(logs):
+        example_callback.on_log(logs)
+        return original_log(logs)
+
+    trainer.log = log_with_callback
+
+    # Store batch data after generation
+    if hasattr(trainer, 'generate'):
+        original_generate = trainer.generate
+        def generate_with_logging(*args, **kwargs):
+            result = original_generate(*args, **kwargs)
+            # Store the generated data
+            if len(args) >= 3:
+                example_callback.on_batch_end(args[0], result, args[2] if len(args) > 2 else None)
+            return result
+        trainer.generate = generate_with_logging
+
     print("✓ Added example logging callback (every 100 steps)", flush=True)
 
     trainer.train()
