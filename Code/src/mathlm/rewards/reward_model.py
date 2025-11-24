@@ -75,6 +75,14 @@ class RewardCalculator:
                     syntax_ok = True
                 except SyntaxError:
                     continue
+                # Heuristic: If the last line is an expression (not assignment/print), wrap it in print()
+                lines = block.strip().split('\n')
+                if lines:
+                    last_line = lines[-1].strip()
+                    if not last_line.startswith("print(") and "=" not in last_line and not last_line.startswith("return") and not last_line.startswith("def ") and not last_line.startswith("#"):
+                        lines[-1] = f"print({last_line})"
+                        block = "\n".join(lines)
+                
                 result = self.sandbox.run(block)
                 # DEBUG: Print sandbox result
                 if not execution_ok: # Only print if we haven't succeeded yet
