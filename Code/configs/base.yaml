@@ -1,28 +1,27 @@
 # Shared defaults for MathLM experiments
 data:
   split: train
-  # source: huggingface  <-- Removed to avoid conflict
-  # Optional: path to a local JSONL file to use as raw data
+  # Optional: path to a local JSONL or Parquet file to use as raw data
   # raw_file: data/processed/gsm8k_train_full.jsonl
-  # Optional: path to a local Parquet file to convert
   parquet_file: data/gsm8k_raw/main/train-00000-of-00001.parquet
   source: parquet
 prompting:
   shots: 0
   template: default
 reward_weights:
-  syntax: 0.0  # Removed - focus on correctness
-  execution: 0.0  # Removed - focus on correctness
-  extraction: 0.1  # Minimal - just to encourage number extraction
-  reasoning: 0.2  # Minimal - encourage showing work
-  exact: 10.0  # Massively increased - primary objective
-  penalty: -2.0  # Increased penalty for wrong answers
+  syntax: 0.2         # reward well-formed Python blocks
+  execution: 0.2      # reward code that runs without errors
+  extraction: 0.3     # reward extracting a numeric answer
+  reasoning: 0.5      # reward showing reasoning steps
+  exact: 2.0          # reward exact match on final answer
+  penalty: -0.5       # penalize incorrect answers
 training:
   model_name: models/gemma-2-2b-it
-  batch_size: 2
-  gradient_accumulation_steps: 4
+  batch_size: 4
+  gradient_accumulation_steps: 2
   learning_rate: 1.0e-5
-  kl_target: 0.08
-  entropy_coef: 0.01
-  checkpoint_interval: 2000  # Save every 2000 steps
+  kl_target: 0.02       # tighter KL to discourage prompt copying
+  entropy_coef: 0.01    # lower exploration to reduce rambling/copying
+  checkpoint_interval: 50000   # Save every 50k steps
+  total_steps: 500000          # Train for 500k steps
   bf16: true

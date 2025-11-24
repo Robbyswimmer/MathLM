@@ -4,4 +4,4 @@ curriculum:
   split: train
   max_problems: null  # Use all training examples (~7.5k)
 training:
-  total_steps: 15000  # Increased for full dataset
+  total_steps: 50000  # RL needs many iterations to explore and learn
