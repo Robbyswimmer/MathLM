@@ -20,10 +20,58 @@ Format your response as follows:
 ```
 <final answer - the numerical result>
 
-Problem: {problem}
+Problem: If I have 3 apples and buy 2 more, how many do I have?
 '''
 
-# For testing: a more explicit version emphasizing reward components
+FEW_SHOT_EXAMPLES = """
+Problem: A store sells 5 apples for $1 each and 3 oranges for $2 each. How much does it cost to buy all of them?
+
+<step-by-step reasoning - describe the problem and your approach>
+We need to calculate the total cost.
+1. Cost of apples: 5 apples * $1/apple = $5
+2. Cost of oranges: 3 oranges * $2/orange = $6
+3. Total cost: $5 + $6 = $11
+
+<lightweight Python code - implement the solution>
+```python
+# Calculate cost of apples
+apples = 5 * 1
+# Calculate cost of oranges
+oranges = 3 * 2
+# Total cost
+total = apples + oranges
+print(total)
+```
+
+<final answer - the numerical result>
+11
+
+Problem: If a train travels at 60 mph for 2 hours, how far does it go?
+
+<step-by-step reasoning - describe the problem and your approach>
+Distance is speed multiplied by time.
+Speed = 60 mph
+Time = 2 hours
+Distance = 60 * 2 = 120 miles.
+
+<lightweight Python code - implement the solution>
+```python
+speed = 60
+time = 2
+distance = speed * time
+print(distance)
+```
+
+<final answer - the numerical result>
+120
+"""
+
+def get_zero_shot_prompt(template:str = 'default', problem:str = '') -> str:
+    '''Returns the prompt based on the specified template.'''
+    if template == 'default':
+        # Prepend few-shot examples to the main prompt
+        full_prompt = ZERO_SHOT_PROMPT.replace("Problem: {problem}", FEW_SHOT_EXAMPLES + "\nProblem: {problem}")
+        return full_prompt.format(problem=problem)
 EXPLICIT_ZERO_SHOT_PROMPT = '''
 Solve this math problem by following these steps:
 
