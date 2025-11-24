@@ -81,47 +81,56 @@ def main():
     )
     reward_calc = RewardCalculator(reward_weights)
 
-    # Run evaluation
+    # Run evaluation with batching for speed
     print("\nRunning evaluation...")
+    batch_size = 8
     results = []
     correct = 0
 
-    for i, example in enumerate(examples):
-        if (i + 1) % 100 == 0:
-            print(f"  Progress: {i+1}/{len(examples)} ({100*(i+1)/len(examples):.1f}%)")
+    for batch_start in range(0, len(examples), batch_size):
+        batch_end = min(batch_start + batch_size, len(examples))
+        batch_examples = examples[batch_start:batch_end]
 
-        # Generate prompt
-        prompt = get_zero_shot_prompt(template="default", problem=example.question)
+        # Generate prompts for batch
+        prompts = [get_zero_shot_prompt(template="default", problem=ex.question) for ex in batch_examples]
 
-        # Generate response
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256)
+        # Batch generate
+        inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, max_length=256)
+        inputs = {k: v.to(model.device) for k, v in inputs.items()}
         outputs = model.generate(
-            inputs["input_ids"],
+            **inputs,
             max_new_tokens=128,
-            do_sample=False,  # Use greedy decoding for evaluation
+            do_sample=False,
             pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
         )
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        responses = tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
-        # Extract just the generated part
-        response_text = response[len(prompt):].strip()
+        # Process batch results
+        for i, (example, prompt, response) in enumerate(zip(batch_examples, prompts, responses)):
+            response_text = response[len(prompt):].strip()
 
-        # Evaluate with reward calculator
-        breakdown = reward_calc.evaluate(example, response_text)
+            # Evaluate with reward calculator
+            breakdown = reward_calc.evaluate(example, response_text)
 
-        # Check if correct (exact reward > 0)
-        is_correct = breakdown.exact_reward > 0
-        if is_correct:
-            correct += 1
+            # Check if correct
+            is_correct = breakdown.exact_reward > 0
+            if is_correct:
+                correct += 1
 
-        results.append({
-            "question": example.question,
-            "answer": example.answer,
-            "response": response_text,
-            "correct": is_correct,
-            "reward": breakdown.total,
-            "exact_reward": breakdown.exact_reward,
-        })
+            results.append({
+                "question": example.question,
+                "answer": example.answer,
+                "response": response_text,
+                "correct": is_correct,
+                "reward": breakdown.total,
+                "exact_reward": breakdown.exact_reward,
+            })
+
+        # Progress logging
+        total_processed = batch_end
+        if total_processed % 100 == 0 or total_processed == len(examples):
+            accuracy_so_far = 100 * correct / total_processed
+            print(f"  Progress: {total_processed}/{len(examples)} ({100*total_processed/len(examples):.1f}%) | Accuracy: {accuracy_so_far:.2f}%", flush=True)
 
     accuracy = 100 * correct / len(examples)
 
