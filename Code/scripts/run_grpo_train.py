@@ -86,6 +86,7 @@ def bootstrap_data(config: ExperimentConfig, data_dir: Path) -> Path:
     curriculum = CurriculumConfig(
         split=config.data.curriculum_split,
         max_problems=config.data.max_problems,
+        difficulty_range=config.data.difficulty_range,
     )
 
     raw_file = getattr(config.data, "raw_file", None)
@@ -98,11 +99,17 @@ def bootstrap_data(config: ExperimentConfig, data_dir: Path) -> Path:
         parquet_file=parquet_file
     )
     examples = load_raw_split(raw_path)
+    print(f"  Loaded {len(examples)} raw examples", flush=True)
 
     # Annotate difficulty scores if not already present
+    print(f"  Annotating difficulty scores...", flush=True)
     examples = annotate_difficulty(examples)
 
+    # Apply curriculum filtering
+    print(f"  Applying curriculum (difficulty_range={curriculum.difficulty_range})...", flush=True)
     subset = apply_curriculum(examples, curriculum)
+    print(f"  ✓ Curriculum applied: {len(subset)} examples selected", flush=True)
+
     processed_path = data_dir / "processed" / f"gsm8k_{config.data.split}_{curriculum.split}.jsonl"
     save_examples(subset, processed_path)
     return processed_path

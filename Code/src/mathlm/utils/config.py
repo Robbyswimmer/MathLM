@@ -26,6 +26,7 @@ class DataConfig:
     max_problems: int | None
     raw_file: str | None = None
     parquet_file: str | None = None
+    difficulty_range: tuple[int, int] | None = None
 
 
 @dataclass
@@ -48,6 +49,11 @@ def parse_config(config: Dict[str, Any]) -> ExperimentConfig:
     training_cfg = config.get("training", {})
     prompting_cfg = config.get("prompting", {})
     reward_cfg = config.get("reward_weights", {})
+    # Parse difficulty_range if present
+    difficulty_range = curriculum.get("difficulty_range")
+    if difficulty_range and isinstance(difficulty_range, list):
+        difficulty_range = tuple(difficulty_range)
+
     data = DataConfig(
         split=data_cfg.get("split", "train"),
         source=data_cfg.get("source", "huggingface"),
@@ -55,6 +61,7 @@ def parse_config(config: Dict[str, Any]) -> ExperimentConfig:
         max_problems=curriculum.get("max_problems"),
         raw_file=data_cfg.get("raw_file"),
         parquet_file=data_cfg.get("parquet_file"),
+        difficulty_range=difficulty_range,
     )
     training = TrainingConfig(
         model_name=training_cfg.get("model_name") or config.get("model_name", "models/gemma-2-2b-it"),
