@@ -29,9 +29,10 @@ from mathlm.data import (
     ensure_raw_split,
     load_raw_split,
     save_examples,
+    annotate_difficulty,
 )
 from mathlm.prompts.zero_shot import get_zero_shot_prompt
-from mathlm.rewards.grpo_rewards import combined_math_reward
+from mathlm.rewards.grpo_rewards import combined_math_reward, combined_math_reward_with_consistency
 from mathlm.training import PromptDataset
 from mathlm.utils import ExperimentConfig, parse_config
 from mathlm.utils.yaml_loader import load_config as load_yaml_config
@@ -97,6 +98,10 @@ def bootstrap_data(config: ExperimentConfig, data_dir: Path) -> Path:
         parquet_file=parquet_file
     )
     examples = load_raw_split(raw_path)
+
+    # Annotate difficulty scores if not already present
+    examples = annotate_difficulty(examples)
+
     subset = apply_curriculum(examples, curriculum)
     processed_path = data_dir / "processed" / f"gsm8k_{config.data.split}_{curriculum.split}.jsonl"
     save_examples(subset, processed_path)
@@ -244,11 +249,16 @@ def main() -> None:
     print(f"  Beta (KL penalty): {grpo_config.beta}", flush=True)
     print(f"  Temperature: {grpo_config.temperature}", flush=True)
 
-    # Initialize GRPO trainer
+    # Initialize GRPO trainer with self-consistency reward
     print("\nInitializing GRPO trainer...", flush=True)
+    use_consistency = getattr(config.training, "use_self_consistency", True)
+    reward_func = combined_math_reward_with_consistency if use_consistency else combined_math_reward
+
+    print(f"  Using reward function: {'self-consistency' if use_consistency else 'standard'}", flush=True)
+
     trainer = GRPOTrainer(
         model=model,
-        reward_funcs=[combined_math_reward],  # Our custom reward function
+        reward_funcs=[reward_func],  # Our custom reward function
         args=grpo_config,
         train_dataset=hf_dataset,
         processing_class=tokenizer,  # Use processing_class instead of tokenizer

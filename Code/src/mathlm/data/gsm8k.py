@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional
@@ -142,3 +143,63 @@ def save_examples(examples: Iterable[GSM8KExample], path: Path) -> None:
     with path.open("w", encoding="utf-8") as fout:
         for ex in examples:
             fout.write(json.dumps(ex.to_json()) + "\n")
+
+
+def estimate_difficulty(example: GSM8KExample) -> int:
+    """
+    Estimate problem difficulty based on heuristics.
+
+    Returns a difficulty score (1-5):
+    - 1: Simple (1-2 operations)
+    - 2: Easy (3-4 operations)
+    - 3: Medium (5-6 operations)
+    - 4: Hard (7-8 operations)
+    - 5: Very Hard (9+ operations)
+
+    Heuristics:
+    - Count reasoning steps in solution
+    - Count arithmetic operations in solution
+    - Question length and complexity indicators
+    """
+    answer = example.answer
+
+    # Count << >> step markers in the answer
+    step_count = answer.count("<<") + answer.count(">>")
+
+    # Count arithmetic operations
+    operations = len(re.findall(r'[+\-*/=×÷]', answer))
+
+    # Count numbers (indicates complexity)
+    numbers = len(re.findall(r'\d+', answer))
+
+    # Question length (longer = potentially harder)
+    question_words = len(example.question.split())
+
+    # Combined score
+    complexity_score = (
+        step_count * 2 +       # Steps are strong signal
+        operations * 1.5 +     # Operations matter
+        numbers * 0.5 +        # More numbers = more complex
+        question_words * 0.1   # Length contributes slightly
+    )
+
+    # Map to 1-5 scale
+    if complexity_score < 10:
+        return 1
+    elif complexity_score < 20:
+        return 2
+    elif complexity_score < 30:
+        return 3
+    elif complexity_score < 40:
+        return 4
+    else:
+        return 5
+
+
+def annotate_difficulty(examples: List[GSM8KExample]) -> List[GSM8KExample]:
+    """Add difficulty scores to examples."""
+    for ex in examples:
+        if ex.difficulty is None:
+            score = estimate_difficulty(ex)
+            ex.difficulty = str(score)
+    return examples
