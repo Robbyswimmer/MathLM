@@ -39,28 +39,24 @@ def math_correctness_reward(
         extracted = extract_final_number(completion)
 
         if extracted is not None:
-            # Bonus for extracting any answer
-            reward += 0.5
-
-            # Main reward: correctness
+            # Main reward: correctness (increased to dominate signal)
             if answers_match(extracted, answer):
-                reward += 4.0  # Correct answer
+                reward += 10.0  # Strong reward for correct answer
             else:
-                reward -= 0.5  # Penalty for wrong answer
+                reward -= 2.0  # Significant penalty for wrong answer
         else:
-            # No answer extracted at all
-            reward -= 0.5
+            # Penalty for no answer extracted
+            reward -= 1.0
 
         # Bonus for showing reasoning (encourage step-by-step)
         if has_reasoning_text(completion):
             reward += 0.5
 
         # Penalties for problematic outputs
-        if is_repetitive(completion, prompt, threshold=0.6):
-            reward -= 2.0  # Strong penalty for repetition
+        if is_repetitive(completion, prompt, threshold=0.5):
+            reward -= 3.0  # Strong penalty for repetition (tightened threshold)
 
-        if is_too_long(completion, prompt, ratio_threshold=1.5):
-            reward -= 0.5  # Penalty for excessive length
+        # Removed length penalty - GSM8K needs detailed solutions
 
         rewards.append(reward)
 
@@ -75,27 +71,21 @@ def format_quality_reward(
     """
     Secondary reward for output format quality.
 
-    Encourages well-structured, readable solutions.
+    Minimal format bonuses to avoid reward gaming.
     """
     rewards = []
 
     for completion in completions:
         reward = 0.0
 
-        # Small bonus for reasonable length (not too short, not too long)
+        # Reduced format bonuses - these were too easily gamed
+        # Only reward substantive structure, not superficial markers
         word_count = len(completion.split())
-        if 20 <= word_count <= 200:
-            reward += 0.1
 
-        # Bonus for containing step markers
-        step_markers = ["step", "first", "then", "next", "finally", "therefore"]
-        if any(marker in completion.lower() for marker in step_markers):
-            reward += 0.1
-
-        # Bonus for containing math operations
+        # Bonus for math operations (actual computation indicator)
         math_symbols = ["=", "+", "-", "*", "/", "×", "÷"]
         if any(symbol in completion for symbol in math_symbols):
-            reward += 0.1
+            reward += 0.05  # Reduced from 0.1
 
         rewards.append(reward)
 
@@ -117,5 +107,5 @@ def combined_math_reward(
     correctness = math_correctness_reward(prompts, completions, answers, **kwargs)
     format_quality = format_quality_reward(prompts, completions, **kwargs)
 
-    # Weight correctness heavily, format quality as bonus
-    return [c + 0.3 * f for c, f in zip(correctness, format_quality)]
+    # Weight correctness very heavily, minimal format bonus to avoid gaming
+    return [c + 0.1 * f for c, f in zip(correctness, format_quality)]

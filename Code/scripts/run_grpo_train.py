@@ -60,6 +60,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--output-dir", type=Path, default=Path("experiments"))
     parser.add_argument("--run-id", type=str, default=None)
+    parser.add_argument("--resume-from-checkpoint", type=str, default=None,
+                        help="Resume training from checkpoint (e.g., 'checkpoint-10000')")
     return parser.parse_args()
 
 
@@ -122,15 +124,43 @@ def main() -> None:
     print(f"\nRun ID: {run_id}", flush=True)
     print(f"Checkpoints: {checkpoint_dir}", flush=True)
 
-    print(f"\nLoading model: {config.training.model_name}", flush=True)
-    tokenizer = AutoTokenizer.from_pretrained(config.training.model_name)
+    # Determine model path (checkpoint or base model)
+    if args.resume_from_checkpoint:
+        model_path = checkpoint_dir / args.resume_from_checkpoint
+        if not model_path.exists():
+            print(f"✗ Checkpoint not found: {model_path}", flush=True)
+            sys.exit(1)
+        print(f"\nResuming from checkpoint: {model_path}", flush=True)
+
+        # Auto-convert PyTorch checkpoint to safetensors if needed (same as eval script)
+        bin_file = model_path / "pytorch_model.bin"
+        safetensors_file = model_path / "model.safetensors"
+
+        if bin_file.exists() and not safetensors_file.exists():
+            print("⚠ Converting checkpoint to safetensors format...", flush=True)
+            from safetensors.torch import save_file
+            state_dict = torch.load(bin_file, map_location="cpu", weights_only=False)
+
+            # Handle weight tying by cloning shared tensors
+            if "lm_head.weight" in state_dict and "model.embed_tokens.weight" in state_dict:
+                if state_dict["lm_head.weight"].data_ptr() == state_dict["model.embed_tokens.weight"].data_ptr():
+                    state_dict["lm_head.weight"] = state_dict["lm_head.weight"].clone()
+
+            save_file(state_dict, str(safetensors_file))
+            bin_file.unlink()
+            print("✓ Converted to safetensors", flush=True)
+    else:
+        model_path = config.training.model_name
+        print(f"\nLoading base model: {model_path}", flush=True)
+
+    tokenizer = AutoTokenizer.from_pretrained(str(model_path))
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     # Critical for generation: pad on the left so generation can append new tokens correctly
     tokenizer.padding_side = "left"
 
     model = AutoModelForCausalLM.from_pretrained(
-        config.training.model_name,
+        str(model_path),
         device_map="auto",
         dtype=torch.bfloat16 if getattr(config.training, "bf16", True) else torch.float32,
     )
@@ -293,7 +323,11 @@ def main() -> None:
     print("="*60, flush=True)
 
     try:
-        trainer.train()
+        # Pass resume_from_checkpoint to trainer.train()
+        if args.resume_from_checkpoint:
+            trainer.train(resume_from_checkpoint=str(checkpoint_dir / args.resume_from_checkpoint))
+        else:
+            trainer.train()
     except KeyboardInterrupt:
         print("\n! Training interrupted by user", flush=True)
     except Exception as e:
