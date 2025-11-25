@@ -1,0 +1,11 @@
+# Stage 4: All problems (Difficulty 1-5)
+include: grpo_curriculum.yaml
+
+curriculum:
+  split: train
+  max_problems: null
+  difficulty_range: [1, 5]  # All difficulties
+
+training:
+  total_steps: 10000
+  checkpoint_interval: 2000
