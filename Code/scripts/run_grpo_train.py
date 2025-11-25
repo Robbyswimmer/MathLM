@@ -154,7 +154,24 @@ def main() -> None:
 
     # Determine model path (checkpoint or base model)
     if args.resume_from_checkpoint:
-        model_path = checkpoint_dir / args.resume_from_checkpoint
+        checkpoint_arg = str(args.resume_from_checkpoint).strip()
+
+        # If contains slash, it's a cross-run path from checkpoints root
+        # e.g., "grpo_232748/checkpoint-10000" -> experiments/checkpoints/grpo_232748/checkpoint-10000
+        if '/' in checkpoint_arg or checkpoint_arg.startswith('checkpoint-'):
+            if '/' in checkpoint_arg:
+                # Cross-run: grpo_232748/checkpoint-10000
+                model_path = args.output_dir / "checkpoints" / checkpoint_arg
+            else:
+                # Current run: checkpoint-10000
+                model_path = checkpoint_dir / checkpoint_arg
+        elif Path(checkpoint_arg).is_absolute():
+            # Absolute path
+            model_path = Path(checkpoint_arg)
+        else:
+            # Assume it's within current run
+            model_path = checkpoint_dir / checkpoint_arg
+
         if not model_path.exists():
             print(f"✗ Checkpoint not found: {model_path}", flush=True)
             sys.exit(1)
