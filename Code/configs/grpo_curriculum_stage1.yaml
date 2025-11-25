@@ -7,5 +7,5 @@ curriculum:
   difficulty_range: [1, 2]  # Only easiest problems
 
 training:
-  total_steps: 10000
+  total_steps: 20000  # Resume from 10k, train to 20k (10k additional steps)
   checkpoint_interval: 2000

@@ -7,5 +7,5 @@ curriculum:
   difficulty_range: [1, 5]  # All difficulties
 
 training:
-  total_steps: 10000
+  total_steps: 50000  # Continue from 40k to 50k
   checkpoint_interval: 2000
