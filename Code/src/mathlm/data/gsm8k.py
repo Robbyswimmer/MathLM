@@ -150,56 +150,58 @@ def estimate_difficulty(example: GSM8KExample) -> int:
     Estimate problem difficulty based on heuristics.
 
     Returns a difficulty score (1-5):
-    - 1: Simple (1-2 operations)
-    - 2: Easy (3-4 operations)
-    - 3: Medium (5-6 operations)
-    - 4: Hard (7-8 operations)
-    - 5: Very Hard (9+ operations)
+    - 1: Simple (1-2 reasoning steps)
+    - 2: Easy (3-4 reasoning steps)
+    - 3: Medium (5-6 reasoning steps)
+    - 4: Hard (7-8 reasoning steps)
+    - 5: Very Hard (9+ reasoning steps)
 
     Heuristics:
-    - Count reasoning steps in solution
+    - Count reasoning steps in solution (sentences/lines)
     - Count arithmetic operations in solution
     - Question length and complexity indicators
     """
     answer = example.answer
+    question = example.question
 
-    # Count << >> step markers in the answer
-    step_count = answer.count("<<") + answer.count(">>")
+    # Count sentences in answer (better proxy for steps than << >>)
+    # GSM8K format: "#### 18" at end, split by periods and newlines
+    answer_sentences = [s.strip() for s in re.split(r'[.\n]', answer) if s.strip() and '####' not in s]
+    step_count = len(answer_sentences)
 
-    # Count arithmetic operations
-    operations = len(re.findall(r'[+\-*/=×÷]', answer))
+    # Also count << >> step markers if present
+    step_markers = answer.count("<<")
+    if step_markers > 0:
+        step_count = max(step_count, step_markers)
 
-    # Count numbers (indicates complexity)
-    numbers = len(re.findall(r'\d+', answer))
-
-    # Question length (longer = potentially harder)
-    question_words = len(example.question.split())
-
-    # Combined score
-    complexity_score = (
-        step_count * 2 +       # Steps are strong signal
-        operations * 1.5 +     # Operations matter
-        numbers * 0.5 +        # More numbers = more complex
-        question_words * 0.1   # Length contributes slightly
-    )
-
-    # Map to 1-5 scale
-    if complexity_score < 10:
+    # Simple heuristic: map step count to difficulty
+    if step_count <= 2:
         return 1
-    elif complexity_score < 20:
+    elif step_count <= 4:
         return 2
-    elif complexity_score < 30:
+    elif step_count <= 6:
         return 3
-    elif complexity_score < 40:
+    elif step_count <= 8:
         return 4
     else:
         return 5
 
 
-def annotate_difficulty(examples: List[GSM8KExample]) -> List[GSM8KExample]:
+def annotate_difficulty(examples: List[GSM8KExample], verbose: bool = True) -> List[GSM8KExample]:
     """Add difficulty scores to examples."""
+    difficulty_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+
     for ex in examples:
         if ex.difficulty is None:
             score = estimate_difficulty(ex)
             ex.difficulty = str(score)
+        difficulty_counts[int(ex.difficulty)] += 1
+
+    if verbose:
+        print(f"  Difficulty distribution:", flush=True)
+        for level in [1, 2, 3, 4, 5]:
+            count = difficulty_counts[level]
+            pct = 100 * count / len(examples)
+            print(f"    Level {level}: {count:4d} ({pct:5.1f}%)", flush=True)
+
     return examples
