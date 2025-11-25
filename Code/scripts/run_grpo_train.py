@@ -375,7 +375,8 @@ def main() -> None:
     try:
         # Pass resume_from_checkpoint to trainer.train()
         if args.resume_from_checkpoint:
-            trainer.train(resume_from_checkpoint=str(checkpoint_dir / args.resume_from_checkpoint))
+            # Use model_path that was already correctly resolved earlier
+            trainer.train(resume_from_checkpoint=str(model_path))
         else:
             trainer.train()
     except KeyboardInterrupt:
