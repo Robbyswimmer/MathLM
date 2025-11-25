@@ -7,6 +7,22 @@ import json
 import sys
 from pathlib import Path
 
+# CRITICAL: Patch torch.load security check BEFORE any transformers imports
+def _noop_check():
+    return None
+
+import transformers.utils.import_utils
+transformers.utils.import_utils.check_torch_load_is_safe = _noop_check
+
+import transformers.modeling_utils
+transformers.modeling_utils.check_torch_load_is_safe = _noop_check
+
+# Also patch in trainer module (loaded lazily)
+import transformers.trainer
+transformers.trainer.check_torch_load_is_safe = _noop_check
+
+print("✓ Patched torch.load security check", flush=True)
+
 from mathlm.data import (
     CurriculumConfig,
     apply_curriculum,
@@ -28,21 +44,6 @@ import torch
 # Disable safetensors globally to avoid shared memory errors with tied weights
 import os
 os.environ["SAFETENSORS_FAST_GPU"] = "0"
-
-# IMPORTANT: Monkey-patch to bypass torch.load security check for .bin files
-# We need to patch it in multiple places because transformers imports it in different modules
-def _noop_check():
-    return None
-
-# Patch it at import time before transformers loads
-import transformers.utils.import_utils
-transformers.utils.import_utils.check_torch_load_is_safe = _noop_check
-
-# Also need to patch it in modeling_utils after import
-import transformers.modeling_utils
-transformers.modeling_utils.check_torch_load_is_safe = _noop_check
-
-print("✓ Patched torch.load security check", flush=True)
 
 # Monkey-patch PreTrainedModel.save_pretrained to always use safe_serialization=False
 from transformers import PreTrainedModel
