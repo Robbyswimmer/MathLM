@@ -181,7 +181,9 @@ def main() -> None:
         beta=getattr(config.training, "beta", 0.04),
         bf16=getattr(config.training, "bf16", True),
         fp16=False,
-        logging_steps=10,
+        logging_steps=50,  # more frequent logs
+        log_completions=True,
+        num_completions_to_print=1,
         save_steps=config.training.checkpoint_interval,
         report_to="none",  # Disable wandb
         num_train_epochs=1,  # We'll control via max_steps
@@ -229,6 +231,19 @@ def main() -> None:
             result = original_log(logs, start_time)
         else:
             result = original_log(logs)
+
+        if logs:
+            step = logs.get("step")
+            keys = [
+                "train/rewards_mean",
+                "train/rewards_std",
+                "train/kl",
+                "loss",
+                "learning_rate",
+            ]
+            summary = {k: v for k, v in logs.items() if k in keys}
+            if summary:
+                print(f"[step {step}] {summary}", flush=True)
 
         if 'step' in logs:
             step = logs['step']
