@@ -9,7 +9,8 @@ curriculum:
   max_problems: null  # Use all problems (filtered by difficulty)
 
 training:
-  use_self_consistency: true  # Enable self-consistency voting reward
+  use_self_consistency: true   # Enable self-consistency voting reward
+  use_process_rewards: false   # Set to true to enable process-based rewards with code verification
   total_steps: 40000           # Total training steps across all stages
   checkpoint_interval: 2000    # Save every 2k steps
 

@@ -32,7 +32,11 @@ from mathlm.data import (
     annotate_difficulty,
 )
 from mathlm.prompts.zero_shot import get_zero_shot_prompt
-from mathlm.rewards.grpo_rewards import combined_math_reward, combined_math_reward_with_consistency
+from mathlm.rewards.grpo_rewards import (
+    combined_math_reward,
+    combined_math_reward_with_consistency,
+    combined_process_reward,
+)
 from mathlm.training import PromptDataset
 from mathlm.utils import ExperimentConfig, parse_config
 from mathlm.utils.yaml_loader import load_config as load_yaml_config
@@ -273,12 +277,23 @@ def main() -> None:
     print(f"  Beta (KL penalty): {grpo_config.beta}", flush=True)
     print(f"  Temperature: {grpo_config.temperature}", flush=True)
 
-    # Initialize GRPO trainer with self-consistency reward
+    # Initialize GRPO trainer with appropriate reward function
     print("\nInitializing GRPO trainer...", flush=True)
+    use_process = getattr(config.training, "use_process_rewards", False)
     use_consistency = getattr(config.training, "use_self_consistency", True)
-    reward_func = combined_math_reward_with_consistency if use_consistency else combined_math_reward
 
-    print(f"  Using reward function: {'self-consistency' if use_consistency else 'standard'}", flush=True)
+    # Select reward function based on config
+    if use_process:
+        reward_func = combined_process_reward
+        reward_name = "process-based with code verification"
+    elif use_consistency:
+        reward_func = combined_math_reward_with_consistency
+        reward_name = "self-consistency"
+    else:
+        reward_func = combined_math_reward
+        reward_name = "standard"
+
+    print(f"  Using reward function: {reward_name}", flush=True)
 
     trainer = GRPOTrainer(
         model=model,

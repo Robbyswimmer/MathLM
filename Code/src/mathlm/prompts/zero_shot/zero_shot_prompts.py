@@ -88,6 +88,31 @@ Solve this math problem, show your reasoning, write Python code to calculate the
 Problem: {problem}
 '''
 
+CODE_ASSISTED_PROMPT = '''
+Solve this math problem using step-by-step reasoning and Python code verification.
+
+Problem: {problem}
+
+Instructions:
+1. Break down the problem into clear reasoning steps
+2. Write Python code to verify your calculations (use only basic arithmetic: +, -, *, /, **)
+3. State the final numerical answer
+
+Format your response as:
+Step 1: [Explain your first step]
+Step 2: [Explain your next step]
+...
+
+```python
+# Python code to verify calculations
+# Use only basic arithmetic operations
+result = ...
+print(result)
+```
+
+Final Answer: [numerical result]
+'''
+
 def get_zero_shot_prompt(template:str = 'default', problem:str = '') -> str:
     '''Returns the zero-shot prompt based on the specified template.'''
     if template == 'default':
@@ -96,5 +121,7 @@ def get_zero_shot_prompt(template:str = 'default', problem:str = '') -> str:
         return EXPLICIT_ZERO_SHOT_PROMPT.format(problem=problem)
     elif template == 'minimal':
         return MINIMAL_ZERO_SHOT_PROMPT.format(problem=problem)
+    elif template == 'code_assisted':
+        return CODE_ASSISTED_PROMPT.format(problem=problem)
     else:
         raise ValueError(f"Unknown template: {template}")
