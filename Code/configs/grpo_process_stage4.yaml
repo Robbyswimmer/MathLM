@@ -1,0 +1,11 @@
+# Stage 4: All problems with process rewards
+include: grpo_process_rewards.yaml
+
+curriculum:
+  split: train
+  max_problems: null
+  difficulty_range: [1, 5]
+
+training:
+  total_steps: 40000
+  checkpoint_interval: 2000

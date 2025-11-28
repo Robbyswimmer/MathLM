@@ -1,0 +1,11 @@
+# Stage 3: Easy to hard problems with process rewards
+include: grpo_process_rewards.yaml
+
+curriculum:
+  split: train
+  max_problems: null
+  difficulty_range: [1, 4]
+
+training:
+  total_steps: 35000
+  checkpoint_interval: 2000

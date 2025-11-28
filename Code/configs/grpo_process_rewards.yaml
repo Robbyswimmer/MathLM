@@ -1,0 +1,16 @@
+# GRPO configuration with process-based rewards and code verification
+# Enhanced RL approach with dense intermediate rewards
+
+include: grpo_base.yaml
+
+# Override settings for process-based reward training
+prompting:
+  template: code_assisted  # Use code-assisted prompt template
+
+training:
+  use_self_consistency: true   # Enable self-consistency voting
+  use_process_rewards: true    # Enable process-based rewards with code verification
+  num_generations: 12          # Increase for better code diversity
+  temperature: 0.9             # Good balance for exploration
+  total_steps: 40000
+  checkpoint_interval: 2000
