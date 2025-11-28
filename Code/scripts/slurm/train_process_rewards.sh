@@ -1,8 +1,8 @@
 #!/bin/bash -l
 
 #SBATCH --job-name="MathLM-ProcessRewards"
-#SBATCH --output=train_process_rewards_%j.txt
-#SBATCH --error=train_process_rewards_%j.err
+#SBATCH --output=logs/train_process_rewards_%j.txt
+#SBATCH --error=logs/train_process_rewards_%j.err
 #SBATCH --time=72:00:00
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=8
@@ -44,21 +44,6 @@ INITIAL_CHECKPOINT=${INITIAL_CHECKPOINT:-""}  # Optional: start from existing ch
 mkdir -p "${CODE_DIR}/logs"
 mkdir -p "${OUTPUT_ROOT}/logs"
 mkdir -p "${OUTPUT_ROOT}/checkpoints"
-
-# Move SLURM output files to logs directory if they exist in submission directory
-if [[ -n "${SLURM_JOB_ID}" ]]; then
-  SLURM_OUT="train_process_rewards_${SLURM_JOB_ID}.txt"
-  SLURM_ERR="train_process_rewards_${SLURM_JOB_ID}.err"
-
-  # Note: Files are being written as the job runs, so we'll create symlinks instead
-  # This way the files appear in the logs directory
-  if [[ -f "${SLURM_OUT}" ]]; then
-    ln -sf "$(pwd)/${SLURM_OUT}" "${CODE_DIR}/logs/${SLURM_OUT}" 2>/dev/null || true
-  fi
-  if [[ -f "${SLURM_ERR}" ]]; then
-    ln -sf "$(pwd)/${SLURM_ERR}" "${CODE_DIR}/logs/${SLURM_ERR}" 2>/dev/null || true
-  fi
-fi
 
 echo "Data dir: ${DATA_DIR}"
 echo "Output root: ${OUTPUT_ROOT}"
