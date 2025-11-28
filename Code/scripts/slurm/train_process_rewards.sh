@@ -30,8 +30,14 @@ set -u
 
 echo "Starting MathLM Process-Based Reward Training at $(date)"
 
-DATA_DIR=${DATA_DIR:-"$PWD/data"}
-OUTPUT_ROOT=${OUTPUT_ROOT:-"$PWD/experiments"}
+# Change to the Code directory (where configs are located)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CODE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+cd "${CODE_DIR}"
+echo "Working directory: ${CODE_DIR}"
+
+DATA_DIR=${DATA_DIR:-"${CODE_DIR}/data"}
+OUTPUT_ROOT=${OUTPUT_ROOT:-"${CODE_DIR}/experiments"}
 RUN_ID=${RUN_ID:-"process_rewards_${SLURM_JOB_ID}"}
 INITIAL_CHECKPOINT=${INITIAL_CHECKPOINT:-""}  # Optional: start from existing checkpoint
 
