@@ -7,5 +7,9 @@ curriculum:
   difficulty_range: [1, 4]
 
 training:
+  use_self_consistency: true   # Must re-specify from parent
+  use_process_rewards: true    # Must re-specify from parent
+  num_generations: 12          # Must re-specify from parent
+  temperature: 0.9             # Must re-specify from parent
   total_steps: 35000
   checkpoint_interval: 2000
