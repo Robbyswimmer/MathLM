@@ -16,6 +16,17 @@ class TrainingConfig:
     entropy_coef: float
     total_steps: int
     checkpoint_interval: int
+    # Additional GRPO parameters
+    num_generations: int = 8
+    temperature: float = 0.9
+    beta: float = 0.04
+    gradient_accumulation_steps: int = 4
+    max_completion_length: int = 512
+    max_prompt_length: int = 256
+    bf16: bool = True
+    # Reward function selection
+    use_self_consistency: bool = True
+    use_process_rewards: bool = False
 
 
 @dataclass
@@ -71,6 +82,17 @@ def parse_config(config: Dict[str, Any]) -> ExperimentConfig:
         entropy_coef=training_cfg.get("entropy_coef", 0.01),
         total_steps=training_cfg.get("total_steps", 250_000),
         checkpoint_interval=training_cfg.get("checkpoint_interval", 1_000),
+        # GRPO parameters
+        num_generations=training_cfg.get("num_generations", 8),
+        temperature=training_cfg.get("temperature", 0.9),
+        beta=training_cfg.get("beta", 0.04),
+        gradient_accumulation_steps=training_cfg.get("gradient_accumulation_steps", 4),
+        max_completion_length=training_cfg.get("max_completion_length", 512),
+        max_prompt_length=training_cfg.get("max_prompt_length", 256),
+        bf16=training_cfg.get("bf16", True),
+        # Reward function flags
+        use_self_consistency=training_cfg.get("use_self_consistency", True),
+        use_process_rewards=training_cfg.get("use_process_rewards", False),
     )
     prompting = PromptingConfig(
         shots=prompting_cfg.get("shots", 0),
