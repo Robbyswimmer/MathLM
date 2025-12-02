@@ -10,7 +10,7 @@ prompting:
 training:
   use_self_consistency: true   # Enable self-consistency voting
   use_process_rewards: true    # Enable process-based rewards with code verification
-  num_generations: 12          # Increase for better code diversity
+  num_generations: 16          # Must be divisible by generation_batch_size (batch_size * grad_accum = 16)
   temperature: 0.9             # Good balance for exploration
   total_steps: 40000
   checkpoint_interval: 2000
