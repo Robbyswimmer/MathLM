@@ -71,7 +71,11 @@ def main():
 
     # Load model and tokenizer
     print("\nLoading model and tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(str(args.checkpoint))
+    tokenizer = AutoTokenizer.from_pretrained(
+        str(args.checkpoint),
+        local_files_only=True,
+        trust_remote_code=True
+    )
 
     # Load model and move to GPU
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -80,6 +84,8 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         str(args.checkpoint),
         dtype=torch.bfloat16 if device == "cuda" else torch.float32,
+        local_files_only=True,
+        trust_remote_code=True
     )
     model = model.to(device)
     model.eval()
