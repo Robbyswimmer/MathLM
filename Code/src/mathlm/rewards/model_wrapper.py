@@ -68,14 +68,6 @@ class MathRewardModel(nn.Module):
             clean_q = question_part.replace("<bos>", "").replace("<eos>", "").replace("<pad>", "").replace("<start_of_turn>", "").replace("<end_of_turn>", "").strip()
             clean_r = response_part.replace("<eos>", "").replace("<pad>", "").replace("<end_of_turn>", "").strip()
 
-            # DEBUG: Print full text for the first example of the batch to diagnose splitting
-            if i == 0 and len(rewards) == 0: # Print only once per batch
-                import sys
-                print(f"\n[REWARD DEBUG] Full text (repr): {repr(text)}", file=sys.stderr, flush=True)
-                print(f"[REWARD DEBUG] Separator used: {sep if response_part else 'NONE'}", file=sys.stderr, flush=True)
-                print(f"[REWARD DEBUG] Question (clean): {clean_q[:50]}...", file=sys.stderr, flush=True)
-                print(f"[REWARD DEBUG] Response (clean): {clean_r[:100]}...", file=sys.stderr, flush=True)
-
             breakdown = self.reward_calc.evaluate(clean_q, clean_r)
             rewards.append(breakdown.total)
             

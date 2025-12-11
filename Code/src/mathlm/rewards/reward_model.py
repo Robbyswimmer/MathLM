@@ -84,11 +84,6 @@ class RewardCalculator:
                         block = "\n".join(lines)
                 
                 result = self.sandbox.run(block)
-                # DEBUG: Print sandbox result
-                if not execution_ok: # Only print if we haven't succeeded yet
-                     import sys
-                     print(f"[SANDBOX DEBUG] Block:\n{block}\n[SANDBOX DEBUG] Success: {result.success}, Stdout: {result.stdout}, Stderr: {result.stderr}", file=sys.stderr, flush=True)
-
                 if result.success:
                     execution_ok = True
                     break

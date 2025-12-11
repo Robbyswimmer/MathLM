@@ -57,7 +57,6 @@ def ensure_raw_split(split: str, data_dir: Path, source: str = "huggingface", ra
 
     if parquet_file is not None:
         parquet_path = Path(parquet_file)
-        print(f"DEBUG: Checking parquet file: {parquet_path.absolute()}", flush=True)
         if parquet_path.exists():
             print(f"Converting Parquet {parquet_path} to JSONL {raw_path}...", flush=True)
             try:
